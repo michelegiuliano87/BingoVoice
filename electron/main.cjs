@@ -293,9 +293,23 @@ async function startAppFlow() {
     await createStartupWindow();
     sendUpdateStatus({ type: "checking" });
     armStartupWatchdog();
-    autoUpdater.checkForUpdates().catch(() => {
-      closeStartupAndOpenMain();
-    });
+    autoUpdater
+      .checkForUpdates()
+      .then((result) => {
+        const version = result?.updateInfo?.version;
+        if (version) {
+          sendUpdateStatus({ type: "available", version });
+          if (!updateDecisionTaken) {
+            updateDecisionTaken = true;
+            autoUpdater.downloadUpdate().catch(() => {
+              closeStartupAndOpenMain();
+            });
+          }
+        }
+      })
+      .catch(() => {
+        closeStartupAndOpenMain();
+      });
     return;
   }
 
