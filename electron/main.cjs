@@ -1,8 +1,13 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
+
+let mainWindow = null;
+let updateCheckStarted = false;
+let licensedUpdatesEnabled = false;
 
 function getRendererEntry() {
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -37,6 +42,72 @@ async function createChildWindow(url) {
   });
 
   await child.loadURL(url);
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("error", async (error) => {
+    if (!mainWindow) return;
+    await dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Aggiornamento non riuscito",
+      message: "Non sono riuscito a controllare gli aggiornamenti di BingoVoice.",
+      detail: error?.message || "Errore sconosciuto.",
+    });
+  });
+
+  autoUpdater.on("update-available", async (info) => {
+    if (!mainWindow) return;
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["Scarica aggiornamento", "Più tardi"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Aggiornamento disponibile",
+      message: `È disponibile BingoVoice ${info.version}.`,
+      detail: "Vuoi scaricare ora l'aggiornamento automatico?",
+    });
+
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate();
+    }
+  });
+
+  autoUpdater.on("update-not-available", async () => {
+    if (!mainWindow) return;
+    mainWindow.webContents.send("desktop:update-status", {
+      type: "up-to-date",
+    });
+  });
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    if (!mainWindow) return;
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["Installa e riavvia", "Più tardi"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Aggiornamento pronto",
+      message: `BingoVoice ${info.version} è stato scaricato.`,
+      detail: "Il programma verrà chiuso e riavviato per completare l'installazione.",
+    });
+
+    if (result.response === 0) {
+      setImmediate(() => autoUpdater.quitAndInstall());
+    }
+  });
+}
+
+function maybeCheckForUpdates() {
+  if (!app.isPackaged || !licensedUpdatesEnabled || updateCheckStarted) return;
+  updateCheckStarted = true;
+  autoUpdater.checkForUpdates().catch(() => {
+    updateCheckStarted = false;
+  });
 }
 
 async function createWindow(hash = "/") {
@@ -79,12 +150,21 @@ ipcMain.handle("desktop:save-file", async (_event, payload) => {
   return pathToFileURL(filePath).toString();
 });
 
+ipcMain.on("desktop:set-license-state", (_event, payload) => {
+  licensedUpdatesEnabled = Boolean(payload?.hasActiveLicense);
+  if (licensedUpdatesEnabled) {
+    maybeCheckForUpdates();
+  }
+});
+
 app.whenReady().then(async () => {
-  await createWindow("/Dashboard");
+  setupAutoUpdater();
+  mainWindow = await createWindow("/Dashboard");
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      await createWindow("/Dashboard");
+      mainWindow = await createWindow("/Dashboard");
+      maybeCheckForUpdates();
     }
   });
 });

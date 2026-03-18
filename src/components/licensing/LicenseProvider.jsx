@@ -31,6 +31,15 @@ export function LicenseProvider({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (window.desktopAPI?.setLicenseState) {
+      window.desktopAPI.setLicenseState({
+        hasActiveLicense: Boolean(activeLicense),
+        email: activeLicense?.email || "",
+      });
+    }
+  }, [activeLicense]);
+
   const value = useMemo(
     () => {
       const permissions = getLicensePermissions(activeLicense);
