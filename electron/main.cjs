@@ -59,6 +59,44 @@ function getRendererEntry() {
   return path.join(__dirname, "..", "dist", "index.html");
 }
 
+async function pathExists(targetPath) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function copyIfMissing(sourcePath, targetPath) {
+  if (!(await pathExists(sourcePath))) return;
+  if (await pathExists(targetPath)) return;
+  await fs.cp(sourcePath, targetPath, { recursive: true, force: false });
+}
+
+async function ensureSeedData() {
+  const userDataPath = app.getPath("userData");
+  const markerPath = path.join(userDataPath, "seed-installed.json");
+  if (await pathExists(markerPath)) return;
+
+  const seedRoot = app.isPackaged
+    ? path.join(process.resourcesPath, "seed-data")
+    : path.join(__dirname, "..", "seed-data");
+
+  if (!(await pathExists(seedRoot))) return;
+
+  await copyIfMissing(path.join(seedRoot, "uploads"), path.join(userDataPath, "uploads"));
+  await copyIfMissing(path.join(seedRoot, "Local Storage"), path.join(userDataPath, "Local Storage"));
+  await copyIfMissing(path.join(seedRoot, "entity-AppSettings.json"), path.join(userDataPath, "entity-AppSettings.json"));
+  await copyIfMissing(path.join(seedRoot, "entity-VideoButton.json"), path.join(userDataPath, "entity-VideoButton.json"));
+
+  await fs.writeFile(
+    markerPath,
+    JSON.stringify({ installedAt: new Date().toISOString() }, null, 2),
+    "utf8",
+  );
+}
+
 async function loadRenderer(win, hash = "/") {
   const entry = getRendererEntry();
   if (entry.startsWith("http")) {
@@ -450,6 +488,7 @@ app.whenReady().then(async () => {
     licensedUpdatesEnabled = Boolean(snapshot?.activeLicense);
     broadcastLicenseSnapshot(snapshot);
   }, writeCachedLicenseState);
+  await ensureSeedData();
   setupAutoUpdater();
   await startAppFlow();
 
