@@ -153,7 +153,7 @@ export default function ProjectionScreen() {
               className="text-white font-black uppercase tracking-widest text-3xl md:text-5xl drop-shadow-2xl animate-pulse"
               style={{ textShadow: "0 0 30px rgba(255,200,0,1), 0 2px 8px rgba(0,0,0,0.8)" }}
             >
-              In attesa di estrazioni...
+              IN ATTESA DI ESTRAZIONE...
             </p>
           </div>
         </div>

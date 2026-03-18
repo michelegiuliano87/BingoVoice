@@ -9,7 +9,7 @@ import MediaItemForm from "@/components/dashboard/MediaItemForm";
 import MediaItemList from "@/components/dashboard/MediaItemList";
 import { createPageUrl } from "@/utils";
 import usePersistentTheme from "@/hooks/usePersistentTheme";
-import { ArrowLeft, FolderPlus, ImagePlus, Loader2, Moon, PackageOpen, PencilLine, Save, Sparkles, Sun } from "lucide-react";
+import { ArrowLeft, FolderPlus, ImagePlus, Loader2, Moon, PackageOpen, PencilLine, Save, Sparkles, Sun, Trash2 } from "lucide-react";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
 
@@ -29,6 +29,7 @@ export default function Projects() {
   const [form, setForm] = useState(emptyForm);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
@@ -38,6 +39,11 @@ export default function Projects() {
   const { data: mediaItems = [] } = useQuery({
     queryKey: ["mediaItems"],
     queryFn: () => base44.entities.MediaItem.list("-created_date"),
+  });
+
+  const { data: playerCards = [] } = useQuery({
+    queryKey: ["playerCards"],
+    queryFn: () => base44.entities.PlayerCard.list("card_number"),
   });
 
   const selectedProject = useMemo(
@@ -132,6 +138,30 @@ export default function Projects() {
 
     setSaving(false);
     refreshProjects();
+  };
+
+  const handleDeleteProject = async () => {
+    if (!selectedProject) return;
+    const confirmed = window.confirm(
+      `Eliminare il progetto \"${selectedProject.name}\"?\nVerranno rimossi anche media e cartelle associate.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+
+    const itemsToDelete = mediaItems.filter((item) => item.project_id === selectedProject.id);
+    const cardsToDelete = playerCards.filter((card) => card.project_id === selectedProject.id);
+
+    for (const item of itemsToDelete) {
+      await base44.entities.MediaItem.delete(item.id);
+    }
+    for (const card of cardsToDelete) {
+      await base44.entities.PlayerCard.delete(card.id);
+    }
+    await base44.entities.Project.delete(selectedProject.id);
+
+    setDeleting(false);
+    refreshProjects();
+    handleStartNewProject();
   };
 
   const handleToggleBonus = async (item) => {
@@ -332,15 +362,29 @@ export default function Projects() {
               </div>
             </div>
 
-            <Button
-              type="button"
-              onClick={selectedProject ? handleUpdateProject : handleCreateProject}
-              disabled={saving || !form.name.trim()}
-              className="w-full bg-cyan-600 hover:bg-cyan-700"
-            >
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              {selectedProject ? "Salva modifiche progetto" : "Crea progetto"}
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button
+                type="button"
+                onClick={selectedProject ? handleUpdateProject : handleCreateProject}
+                disabled={saving || !form.name.trim()}
+                className="w-full bg-cyan-600 hover:bg-cyan-700"
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {selectedProject ? "Salva modifiche progetto" : "Crea progetto"}
+              </Button>
+              {selectedProject ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteProject}
+                  disabled={deleting}
+                  className="w-full"
+                >
+                  {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  Elimina progetto
+                </Button>
+              ) : null}
+            </div>
           </div>
         </section>
 
