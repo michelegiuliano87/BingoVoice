@@ -3,6 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const os = require("node:os");
 const { pathToFileURL } = require("node:url");
 
 let mainWindow = null;
@@ -10,6 +11,40 @@ let startupWindow = null;
 let licensedUpdatesEnabled = false;
 let startupMode = false;
 let updateDecisionTaken = false;
+const FILE_PROTECTION_PREFIX = "encfile:v1:";
+const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
+
+function deriveFileKey(namespace = "core") {
+  return crypto.scryptSync(
+    `${FILE_PROTECTION_SECRET}|${os.hostname()}|${os.userInfo().username}|${os.platform()}|${os.arch()}`,
+    `bingovoice|${namespace}`,
+    32,
+  );
+}
+
+function encryptFileJson(payload, namespace = "core") {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", deriveFileKey(namespace), iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload), "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `${FILE_PROTECTION_PREFIX}${Buffer.concat([iv, authTag, encrypted]).toString("base64")}`;
+}
+
+function decryptFileJson(raw, namespace = "core") {
+  const source = String(raw || "");
+  if (!source.startsWith(FILE_PROTECTION_PREFIX)) {
+    return JSON.parse(source);
+  }
+
+  const payload = Buffer.from(source.slice(FILE_PROTECTION_PREFIX.length), "base64");
+  const iv = payload.subarray(0, 12);
+  const authTag = payload.subarray(12, 28);
+  const encrypted = payload.subarray(28);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", deriveFileKey(namespace), iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+  return JSON.parse(decrypted);
+}
 
 function getRendererEntry() {
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -128,14 +163,14 @@ function getLicenseStatePath() {
 async function readCachedLicenseState() {
   try {
     const raw = await fs.readFile(getLicenseStatePath(), "utf8");
-    return JSON.parse(raw);
+    return decryptFileJson(raw, "licenseState");
   } catch {
     return { hasActiveLicense: false };
   }
 }
 
 async function writeCachedLicenseState(payload) {
-  await fs.writeFile(getLicenseStatePath(), JSON.stringify(payload, null, 2), "utf8");
+  await fs.writeFile(getLicenseStatePath(), encryptFileJson(payload, "licenseState"), "utf8");
 }
 
 function setupAutoUpdater() {

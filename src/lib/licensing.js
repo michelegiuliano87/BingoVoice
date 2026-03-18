@@ -1,3 +1,5 @@
+import { readProtectedJson, removeProtectedItem, writeProtectedJson } from "@/lib/secureStorage";
+
 const LICENSE_STORAGE_KEY = "toretto.licenses.records";
 const CUSTOMER_STORAGE_KEY = "toretto.licenses.customers";
 const ACTIVATION_STORAGE_KEY = "toretto.licenses.activation";
@@ -63,12 +65,7 @@ const decodePayload = (encoded) => {
 const signPayload = (payload) => hashString(`${JSON.stringify(payload)}|${SECRET_SALT}`);
 
 const getStoredJson = (key, fallback) => {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readProtectedJson(key, fallback, `license:${key}`);
 };
 
 const dispatchLicenseChange = () => {
@@ -76,7 +73,7 @@ const dispatchLicenseChange = () => {
 };
 
 const setStoredJson = (key, value) => {
-  window.localStorage.setItem(key, JSON.stringify(value));
+  writeProtectedJson(key, value, `license:${key}`);
   dispatchLicenseChange();
 };
 
@@ -388,7 +385,7 @@ export const activateLicense = ({ email, key }) => {
 };
 
 export const deactivateLicense = () => {
-  window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
+  removeProtectedItem(ACTIVATION_STORAGE_KEY);
   dispatchLicenseChange();
 };
 

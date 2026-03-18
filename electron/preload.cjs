@@ -1,9 +1,52 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const crypto = require("node:crypto");
+const os = require("node:os");
+
+const PROTECTED_PREFIX = "enc:v1:";
+const BASE_SECRET = "toretto-local-protection-v1";
+
+function buildMachineFingerprint() {
+  return [os.hostname(), os.userInfo().username, os.platform(), os.arch()].join("|");
+}
+
+function deriveKey(namespace = "core") {
+  return crypto.scryptSync(
+    `${BASE_SECRET}|${buildMachineFingerprint()}`,
+    `bingovoice|${namespace}`,
+    32,
+  );
+}
+
+function encryptStorageValue(value, namespace = "core") {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", deriveKey(namespace), iv);
+  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return `${PROTECTED_PREFIX}${Buffer.concat([iv, authTag, encrypted]).toString("base64")}`;
+}
+
+function decryptStorageValue(value, namespace = "core") {
+  const raw = String(value || "");
+  if (!raw.startsWith(PROTECTED_PREFIX)) {
+    return raw;
+  }
+
+  const payload = Buffer.from(raw.slice(PROTECTED_PREFIX.length), "base64");
+  const iv = payload.subarray(0, 12);
+  const authTag = payload.subarray(12, 28);
+  const encrypted = payload.subarray(28);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", deriveKey(namespace), iv);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+}
 
 contextBridge.exposeInMainWorld("desktopAPI", {
   saveMediaFile: (payload) => ipcRenderer.invoke("desktop:save-file", payload),
   setLicenseState: (payload) => ipcRenderer.send("desktop:set-license-state", payload),
   updaterAction: (action) => ipcRenderer.send("desktop:updater-action", action),
+  encryptStorageValue: (value, namespace) => encryptStorageValue(value, namespace),
+  decryptStorageValue: (value, namespace) => decryptStorageValue(value, namespace),
   onUpdateStatus: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on("desktop:update-status", handler);

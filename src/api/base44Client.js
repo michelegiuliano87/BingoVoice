@@ -1,3 +1,5 @@
+import { readProtectedJson, writeProtectedJson } from "@/lib/secureStorage";
+
 const STORAGE_PREFIX = "toretto.local";
 const ENTITY_NAMES = [
   "Project",
@@ -13,19 +15,12 @@ const getStorageKey = (entityName) => `${STORAGE_PREFIX}.${entityName}`;
 
 const readCollection = (entityName) => {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(getStorageKey(entityName));
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = readProtectedJson(getStorageKey(entityName), [], `entity:${entityName}`);
+  return Array.isArray(parsed) ? parsed : [];
 };
 
 const writeCollection = (entityName, items) => {
-  window.localStorage.setItem(getStorageKey(entityName), JSON.stringify(items));
+  writeProtectedJson(getStorageKey(entityName), items, `entity:${entityName}`);
   window.dispatchEvent(
     new CustomEvent("bingovoice:data-changed", {
       detail: { entityName, timestamp: Date.now() },
