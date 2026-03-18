@@ -1,0 +1,36 @@
+{
+  "name": "Extraction",
+  "type": "object",
+  "properties": {
+    "media_item_id": {
+      "type": "string",
+      "description": "ID of the extracted media item"
+    },
+    "media_name": {
+      "type": "string",
+      "description": "Name of the extracted media item"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Image URL of the extracted item"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "Audio URL of the extracted item"
+    },
+    "order_number": {
+      "type": "number",
+      "description": "Extraction order number"
+    },
+    "is_bonus": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this extraction is Bonus Voice"
+    }
+  },
+  "required": [
+    "media_item_id",
+    "media_name",
+    "image_url"
+  ]
+}

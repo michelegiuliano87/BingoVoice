@@ -1,0 +1,29 @@
+{
+  "name": "PlayerCard",
+  "type": "object",
+  "properties": {
+    "card_number": {
+      "type": "number",
+      "description": "Numero della cartella (es. 1, 2, 3...)"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "URL dell'immagine della cartella"
+    },
+    "media_item_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista degli ID dei 15 media item presenti sulla cartella"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "ID del progetto a cui appartiene la cartella"
+    }
+  },
+  "required": [
+    "card_number",
+    "media_item_ids"
+  ]
+}

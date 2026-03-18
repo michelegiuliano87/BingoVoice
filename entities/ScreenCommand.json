@@ -1,0 +1,36 @@
+{
+  "name": "ScreenCommand",
+  "type": "object",
+  "properties": {
+    "command_type": {
+      "type": "string",
+      "enum": [
+        "play_video",
+        "show_extraction",
+        "clear_video",
+        "show_bonus",
+        "music_play",
+        "music_pause",
+        "music_stop",
+        "music_volume",
+        "spin_wheel"
+      ],
+      "description": "Type of command to send to projection screen"
+    },
+    "video_url": {
+      "type": "string",
+      "description": "Video URL to play"
+    },
+    "extraction_id": {
+      "type": "string",
+      "description": "Extraction ID to highlight, or JSON payload"
+    },
+    "value": {
+      "type": "number",
+      "description": "Generic numeric value (e.g. volume 0-1)"
+    }
+  },
+  "required": [
+    "command_type"
+  ]
+}

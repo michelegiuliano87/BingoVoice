@@ -1,0 +1,41 @@
+{
+  "name": "MediaItem",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the media item"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "URL of the uploaded image"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL of the uploaded audio file"
+    },
+    "extracted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this item has been extracted"
+    },
+    "is_bonus": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this item is the Bonus Voice"
+    },
+    "is_panariello_band": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this item triggers the Panariello Band video"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "ID of the project this item belongs to"
+    }
+  },
+  "required": [
+    "name",
+    "image_url"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "VideoButton",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Button label"
+    },
+    "video_url": {
+      "type": "string",
+      "description": "URL of the uploaded video"
+    },
+    "color": {
+      "type": "string",
+      "description": "Button color class"
+    }
+  },
+  "required": [
+    "label",
+    "video_url"
+  ]
+}
