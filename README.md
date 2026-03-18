@@ -109,26 +109,40 @@ BingoVoice e' la soluzione ideale per chi vuole unire intrattenimento, praticita
 
 Pagina iniziale per l'attivazione del programma tramite email e chiave licenza.
 
+![Schermata di accesso](assets/screenshot/01-accesso-bingovoice.png)
+
 ### 2. Dashboard principale
 
 Centro di controllo del gioco, con selezione progetto, pulsante di estrazione, cronologia, bonus e impostazioni principali.
+
+![Dashboard principale](assets/screenshot/02-dashboard-principale.png)
 
 ### 3. Pagina Progetti
 
 Area dedicata alla creazione e modifica dei progetti, con miniatura, descrizione ed elementi media associati.
 
+![Pagina Progetti](assets/screenshot/03-pagina-progetti.png)
+
 ### 4. Gestione Cartelle
 
 Schermata per creare, modificare e controllare le cartelle collegate ai progetti di gioco.
+
+![Gestione Cartelle](assets/screenshot/04-gestione-cartelle.png)
 
 ### 5. Lucky Wheel
 
 Animazione mostrata sullo schermo pubblico durante l'estrazione, prima della selezione finale dell'elemento.
 
+![Lucky Wheel](assets/screenshot/05-lucky-wheel.png)
+
 ### 6. Risultato estrazione
 
 Visualizzazione del contenuto estratto sullo schermo pubblico, con immagine in primo piano e titolo evidenziato.
 
+![Risultato estrazione](assets/screenshot/06-risultato-estrazione.png)
+
 ### 7. Tabellone pubblico
 
 Vista generale del tabellone dove vengono posizionati progressivamente gli elementi estratti durante la partita.
+
+![Tabellone pubblico](assets/screenshot/07-tabellone-pubblico.png)
