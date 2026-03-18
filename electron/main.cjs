@@ -15,6 +15,7 @@ let updateDecisionTaken = false;
 let licenseService = null;
 let startupWatchdog = null;
 let startupStatus = "idle";
+let startupForceOpenTimer = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -133,6 +134,10 @@ async function closeStartupAndOpenMain() {
     clearTimeout(startupWatchdog);
     startupWatchdog = null;
   }
+  if (startupForceOpenTimer) {
+    clearTimeout(startupForceOpenTimer);
+    startupForceOpenTimer = null;
+  }
   startupMode = false;
   startupStatus = "idle";
   await openMainWindow();
@@ -195,6 +200,13 @@ function armStartupWatchdog() {
       }, 1200);
     }
   }, 12000);
+
+  if (startupForceOpenTimer) clearTimeout(startupForceOpenTimer);
+  startupForceOpenTimer = setTimeout(() => {
+    if (startupMode) {
+      closeStartupAndOpenMain();
+    }
+  }, 20000);
 }
 
 function getLicenseStatePath() {
@@ -314,7 +326,11 @@ ipcMain.handle("desktop:project-package:save", async (_event, payload) => {
     return { canceled: true };
   }
 
-  await fs.writeFile(result.filePath, JSON.stringify(payload.packageData, null, 2), "utf8");
+  if (payload?.bytes) {
+    await fs.writeFile(result.filePath, Buffer.from(payload.bytes));
+  } else {
+    await fs.writeFile(result.filePath, JSON.stringify(payload.packageData, null, 2), "utf8");
+  }
   return { canceled: false, filePath: result.filePath };
 });
 
@@ -330,11 +346,22 @@ ipcMain.handle("desktop:project-package:open", async () => {
     return { canceled: true };
   }
 
-  const raw = await fs.readFile(result.filePaths[0], "utf8");
+  const filePath = result.filePaths[0];
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".json") {
+    const raw = await fs.readFile(filePath, "utf8");
+    return {
+      canceled: false,
+      filePath,
+      packageData: JSON.parse(raw),
+    };
+  }
+
+  const raw = await fs.readFile(filePath);
   return {
     canceled: false,
-    filePath: result.filePaths[0],
-    packageData: JSON.parse(raw),
+    filePath,
+    bytes: raw,
   };
 });
 

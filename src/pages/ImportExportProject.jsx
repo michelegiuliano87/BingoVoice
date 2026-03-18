@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import usePersistentTheme from "@/hooks/usePersistentTheme";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
-import { buildProjectPackage, importProjectPackage } from "@/lib/projectPackage";
+import { buildProjectPackageZip, importProjectPackage, importProjectPackageZip } from "@/lib/projectPackage";
 
 export default function ImportExportProject() {
   const queryClient = useQueryClient();
@@ -71,7 +71,7 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
-      const packageData = await buildProjectPackage({
+      const { bytes } = await buildProjectPackageZip({
         project: selectedProject,
         mediaItems: projectMedia,
         playerCards: projectCards,
@@ -85,7 +85,7 @@ export default function ImportExportProject() {
       if (window?.desktopAPI?.saveProjectPackage) {
         result = await window.desktopAPI.saveProjectPackage({
           suggestedName,
-          packageData,
+          bytes,
         });
       } else if (window?.showSaveFilePicker) {
         const handle = await window.showSaveFilePicker({
@@ -98,7 +98,7 @@ export default function ImportExportProject() {
           ],
         });
         const writable = await handle.createWritable();
-        await writable.write(JSON.stringify(packageData, null, 2));
+        await writable.write(bytes);
         await writable.close();
         result = { canceled: false, filePath: handle?.name || suggestedName };
       } else {
@@ -136,18 +136,27 @@ export default function ImportExportProject() {
           multiple: false,
         });
         const file = await handle.getFile();
-        const raw = await file.text();
-        result = { canceled: false, filePath: file.name, packageData: JSON.parse(raw) };
+        const arrayBuffer = await file.arrayBuffer();
+        result = { canceled: false, filePath: file.name, bytes: new Uint8Array(arrayBuffer) };
       } else {
         setFeedback("Funzione di importazione non disponibile in questa modalita.");
         return;
       }
-      if (result?.canceled || !result.packageData) {
+      if (result?.canceled) {
         setBusyAction("");
         return;
       }
 
-      const createdProject = await importProjectPackage(result.packageData);
+      let createdProject = null;
+      if (result?.bytes) {
+        createdProject = await importProjectPackageZip(result.bytes);
+      } else if (result?.packageData) {
+        createdProject = await importProjectPackage(result.packageData);
+      } else {
+        setFeedback("Pacchetto non valido o vuoto.");
+        setBusyAction("");
+        return;
+      }
       refreshAll();
       setSelectedProjectId(createdProject.id);
       setFeedback(`Progetto importato con successo: ${createdProject.name}`);

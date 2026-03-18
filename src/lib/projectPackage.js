@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { base44 } from "@/api/base44Client";
 
 const PACKAGE_FORMAT = "bingovoice-project-package";
@@ -25,47 +26,40 @@ const fileNameFromUrl = (url, fallback) => {
   }
 };
 
-const guessMimeType = (url, blob) => blob?.type || (url.startsWith("data:") ? url.slice(5, url.indexOf(";")) : "application/octet-stream");
+const guessMimeType = (url, blob) =>
+  blob?.type || (url.startsWith("data:") ? url.slice(5, url.indexOf(";")) : "application/octet-stream");
 
-const blobToBase64 = async (blob) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = String(reader.result || "");
-      resolve(result.split(",")[1] || "");
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Impossibile convertire il file"));
-    reader.readAsDataURL(blob);
-  });
-
-const fetchAsset = async (url, fallbackName) => {
+const fetchAssetBlob = async (url, fallbackName) => {
   if (!url) return null;
   const response = await fetch(url);
   const blob = await response.blob();
   return {
     name: fileNameFromUrl(url, fallbackName),
     type: guessMimeType(url, blob),
-    data: await blobToBase64(blob),
+    blob,
   };
 };
 
 const pushAsset = async (assets, url, fallbackName) => {
-  const asset = await fetchAsset(url, fallbackName);
+  const asset = await fetchAssetBlob(url, fallbackName);
   if (!asset) return "";
   const key = `${crypto.randomUUID()}`;
-  assets[key] = asset;
+  const safeName = asset.name.replace(/[\\/:*?"<>|]+/g, "-");
+  assets[key] = {
+    name: safeName || fallbackName,
+    type: asset.type || "application/octet-stream",
+    blob: asset.blob,
+  };
   return key;
 };
 
-const createFileFromAsset = (asset) => {
-  const bytes = Uint8Array.from(atob(asset.data), (char) => char.charCodeAt(0));
-  return new File([bytes], asset.name, { type: asset.type || "application/octet-stream" });
-};
+const createFileFromBytes = (bytes, name, type) =>
+  new File([bytes], name, { type: type || "application/octet-stream" });
 
 const uploadAsset = async (asset) => {
   if (!asset) return "";
   const result = await base44.integrations.Core.UploadFile({
-    file: createFileFromAsset(asset),
+    file: createFileFromBytes(asset.bytes || asset.data || new Uint8Array(), asset.name || "asset", asset.type),
   });
   return result.file_url;
 };
@@ -138,6 +132,51 @@ export async function buildProjectPackage({
   };
 }
 
+export async function buildProjectPackageZip({
+  project,
+  mediaItems,
+  playerCards,
+  appSettings,
+  videoButtons,
+}) {
+  const packageData = await buildProjectPackage({
+    project,
+    mediaItems,
+    playerCards,
+    appSettings,
+    videoButtons,
+  });
+
+  const zip = new JSZip();
+  const assetsFolder = zip.folder("assets");
+  const assets = packageData.assets || {};
+  const assetMap = {};
+
+  for (const [key, asset] of Object.entries(assets)) {
+    if (!asset?.blob) continue;
+    const fileName = `${key}-${asset.name || "asset"}`;
+    assetsFolder.file(fileName, asset.blob);
+    assetMap[key] = {
+      name: asset.name || fileName,
+      type: asset.type || "application/octet-stream",
+      path: `assets/${fileName}`,
+    };
+  }
+
+  const manifest = {
+    ...packageData,
+    assets: assetMap,
+  };
+
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+  const bytes = await zip.generateAsync({
+    type: "uint8array",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+  return { bytes, manifest };
+}
+
 export async function importProjectPackage(pkg) {
   if (pkg?.format !== PACKAGE_FORMAT) {
     throw new Error("Pacchetto progetto non valido");
@@ -205,4 +244,35 @@ export async function importProjectPackage(pkg) {
   }
 
   return createdProject;
+}
+
+export async function importProjectPackageZip(bytes) {
+  const zip = await JSZip.loadAsync(bytes);
+  const manifestRaw = await zip.file("manifest.json")?.async("string");
+  if (!manifestRaw) {
+    throw new Error("Manifest del pacchetto non trovato");
+  }
+
+  const manifest = JSON.parse(manifestRaw);
+  if (manifest?.format !== PACKAGE_FORMAT) {
+    throw new Error("Pacchetto progetto non valido");
+  }
+
+  const assets = manifest.assets || {};
+  const resolvedAssets = {};
+  for (const [key, asset] of Object.entries(assets)) {
+    const fileEntry = zip.file(asset.path);
+    if (!fileEntry) continue;
+    const fileBytes = await fileEntry.async("uint8array");
+    resolvedAssets[key] = {
+      name: asset.name,
+      type: asset.type,
+      bytes: fileBytes,
+    };
+  }
+
+  return importProjectPackage({
+    ...manifest,
+    assets: resolvedAssets,
+  });
 }
