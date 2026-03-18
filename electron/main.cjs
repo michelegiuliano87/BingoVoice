@@ -299,12 +299,6 @@ async function startAppFlow() {
         const version = result?.updateInfo?.version;
         if (version) {
           sendUpdateStatus({ type: "available", version });
-          if (!updateDecisionTaken) {
-            updateDecisionTaken = true;
-            autoUpdater.downloadUpdate().catch(() => {
-              closeStartupAndOpenMain();
-            });
-          }
         }
       })
       .catch(() => {
