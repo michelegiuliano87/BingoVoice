@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import usePersistentTheme from "@/hooks/usePersistentTheme";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
+import packageJson from "../../package.json";
 
 import MediaItemList from "../components/dashboard/MediaItemList";
 import VideoButtonManager from "../components/dashboard/VideoButtonManager";
@@ -233,7 +234,12 @@ export default function Dashboard() {
       <div className={`${header} sticky top-0 z-10 border-b`}>
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3">
           <div>
-            <h1 className={`text-xl font-black tracking-tight ${title}`}>BingoVoice Dashboard</h1>
+            <div className="flex items-center gap-3">
+              <h1 className={`text-xl font-black tracking-tight ${title}`}>BingoVoice Dashboard</h1>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${isDark ? "bg-cyan-500/10 text-cyan-300" : "bg-cyan-50 text-cyan-700"}`}>
+                v{packageJson.version}
+              </span>
+            </div>
             <p className={`mt-0.5 text-xs ${subtitle}`}>Gestione estrazione, progetti e schermo pubblico</p>
             <p className={`mt-1 text-[11px] ${subtitle}`}>
               Licenza attiva: {activeLicense?.email || "non disponibile"}
