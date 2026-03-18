@@ -13,6 +13,8 @@ let licensedUpdatesEnabled = false;
 let startupMode = false;
 let updateDecisionTaken = false;
 let licenseService = null;
+let startupWatchdog = null;
+let startupStatus = "idle";
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -67,6 +69,13 @@ async function loadRenderer(win, hash = "/") {
 }
 
 function sendUpdateStatus(payload) {
+  if (payload?.type) {
+    startupStatus = payload.type;
+    if (startupWatchdog && payload.type !== "checking") {
+      clearTimeout(startupWatchdog);
+      startupWatchdog = null;
+    }
+  }
   if (startupWindow && !startupWindow.isDestroyed()) {
     startupWindow.webContents.send("desktop:update-status", payload);
   }
@@ -120,7 +129,12 @@ async function closeStartupAndOpenMain() {
     startupWindow = null;
   }
 
+  if (startupWatchdog) {
+    clearTimeout(startupWatchdog);
+    startupWatchdog = null;
+  }
   startupMode = false;
+  startupStatus = "idle";
   await openMainWindow();
 }
 
@@ -165,6 +179,22 @@ async function createStartupWindow() {
   startupWindow.on("closed", () => {
     startupWindow = null;
   });
+}
+
+function armStartupWatchdog() {
+  if (startupWatchdog) clearTimeout(startupWatchdog);
+  startupStatus = "checking";
+  startupWatchdog = setTimeout(() => {
+    if (startupMode && startupStatus === "checking") {
+      sendUpdateStatus({
+        type: "error",
+        message: "Controllo aggiornamenti in timeout. Sto aprendo il programma.",
+      });
+      setTimeout(() => {
+        closeStartupAndOpenMain();
+      }, 1200);
+    }
+  }, 12000);
 }
 
 function getLicenseStatePath() {
@@ -234,12 +264,23 @@ function setupAutoUpdater() {
 
 async function startAppFlow() {
   const cachedLicense = await readCachedLicenseState();
-  licensedUpdatesEnabled = Boolean(cachedLicense?.hasActiveLicense);
+  let hasActiveLicense = Boolean(cachedLicense?.hasActiveLicense);
+  if (licenseService) {
+    try {
+      const snapshot = await licenseService.getSnapshot();
+      hasActiveLicense = Boolean(snapshot?.activeLicense || hasActiveLicense);
+    } catch {
+      // Keep cached value if snapshot fails.
+    }
+  }
+  licensedUpdatesEnabled = hasActiveLicense;
 
   if (app.isPackaged && licensedUpdatesEnabled) {
     startupMode = true;
     updateDecisionTaken = false;
     await createStartupWindow();
+    sendUpdateStatus({ type: "checking" });
+    armStartupWatchdog();
     autoUpdater.checkForUpdates().catch(() => {
       closeStartupAndOpenMain();
     });
