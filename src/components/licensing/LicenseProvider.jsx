@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { LICENSE_PERMISSIONS, matchesOwnerEmail } from "@/lib/licensing";
 import { readProtectedJson } from "@/lib/secureStorage";
+import { licensingFallback } from "@/lib/licensingFallback";
 
 const LicenseContext = createContext(null);
 const LEGACY_CUSTOMER_KEY = "toretto.licenses.customers";
@@ -30,8 +31,25 @@ export function LicenseProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    const hasDesktopBridge = Boolean(window.desktopAPI?.getLicenseSnapshot);
 
     const sync = async () => {
+      if (!hasDesktopBridge) {
+        if (mounted) {
+          setSnapshot({
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          });
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         let nextSnapshot = await window.desktopAPI?.getLicenseSnapshot?.();
         const shouldMigrate =
@@ -72,6 +90,29 @@ export function LicenseProvider({ children }) {
 
     sync();
 
+    if (!hasDesktopBridge) {
+      const legacySync = () => {
+        if (mounted) {
+          setSnapshot({
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          });
+        }
+      };
+      window.addEventListener("storage", legacySync);
+      window.addEventListener("toretto:license-changed", legacySync);
+      return () => {
+        mounted = false;
+        window.removeEventListener("storage", legacySync);
+        window.removeEventListener("toretto:license-changed", legacySync);
+      };
+    }
+
     const unsubscribe = window.desktopAPI?.onLicenseChanged?.((nextSnapshot) => {
       if (mounted && nextSnapshot) {
         setSnapshot(nextSnapshot);
@@ -104,20 +145,74 @@ export function LicenseProvider({ children }) {
       permissions,
       hasPermission: (permission) => Boolean(permissions?.[permission]) || isOwner,
       activate: async ({ email, key }) => {
+        if (!window.desktopAPI?.activateLicense) {
+          licensingFallback.activateLicense({ email, key });
+          const nextSnapshot = {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          };
+          setSnapshot(nextSnapshot);
+          return nextSnapshot.activeLicense;
+        }
         const nextSnapshot = await window.desktopAPI.activateLicense({ email, key });
         setSnapshot(nextSnapshot);
         return nextSnapshot.activeLicense;
       },
       deactivate: async () => {
+        if (!window.desktopAPI?.deactivateLicense) {
+          licensingFallback.deactivateLicense();
+          setSnapshot({
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          });
+          return;
+        }
         const nextSnapshot = await window.desktopAPI.deactivateLicense();
         setSnapshot(nextSnapshot);
       },
       activateOwnerAccess: async () => {
+        if (!window.desktopAPI?.activateOwnerAccess) {
+          licensingFallback.activateOwnerAccess();
+          const nextSnapshot = {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          };
+          setSnapshot(nextSnapshot);
+          return nextSnapshot.activeLicense;
+        }
         const nextSnapshot = await window.desktopAPI.activateOwnerAccess();
         setSnapshot(nextSnapshot);
         return nextSnapshot.activeLicense;
       },
       refreshLicenseSnapshot: async () => {
+        if (!window.desktopAPI?.getLicenseSnapshot) {
+          const nextSnapshot = {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            activeLicense: licensingFallback.getActiveLicense(),
+            storedActivation: licensingFallback.getStoredActivation(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+            summary: licensingFallback.getLicenseDashboardSummary(),
+          };
+          setSnapshot(nextSnapshot);
+          return nextSnapshot;
+        }
         const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
         setSnapshot(nextSnapshot);
         return nextSnapshot;

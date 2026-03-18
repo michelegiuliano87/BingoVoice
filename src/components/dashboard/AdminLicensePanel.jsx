@@ -18,6 +18,7 @@ import {
   LICENSE_STATUS,
   LICENSE_PERMISSIONS,
 } from "@/lib/licensing";
+import { licensingFallback } from "@/lib/licensingFallback";
 
 const DEFAULT_DAYS = 365;
 const emptyPermissions = () => ({ ...DEFAULT_LICENSE_PERMISSIONS });
@@ -89,20 +90,50 @@ export default function AdminLicensePanel({ isDark }) {
 
   useEffect(() => {
     let mounted = true;
+    const hasDesktopBridge = Boolean(window.desktopAPI?.getLicenseSnapshot);
 
     const sync = async () => {
-      const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
+      const nextSnapshot = hasDesktopBridge
+        ? await window.desktopAPI.getLicenseSnapshot()
+        : {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
       if (mounted && nextSnapshot) {
         setSnapshot(nextSnapshot);
       }
     };
 
     sync();
-    const unsubscribe = window.desktopAPI?.onLicenseChanged?.((nextSnapshot) => {
-      if (mounted && nextSnapshot) {
-        setSnapshot(nextSnapshot);
-      }
-    });
+    let unsubscribe = null;
+    if (hasDesktopBridge) {
+      unsubscribe = window.desktopAPI?.onLicenseChanged?.((nextSnapshot) => {
+        if (mounted && nextSnapshot) {
+          setSnapshot(nextSnapshot);
+        }
+      });
+    } else {
+      const legacySync = () => {
+        if (mounted) {
+          setSnapshot({
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          });
+        }
+      };
+      window.addEventListener("storage", legacySync);
+      window.addEventListener("toretto:license-changed", legacySync);
+      unsubscribe = () => {
+        window.removeEventListener("storage", legacySync);
+        window.removeEventListener("toretto:license-changed", legacySync);
+      };
+    }
 
     return () => {
       mounted = false;
@@ -124,7 +155,15 @@ export default function AdminLicensePanel({ isDark }) {
     : "border-gray-200 bg-white text-gray-900";
 
   const forceRefresh = async () => {
-    const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
+    const nextSnapshot = window.desktopAPI?.getLicenseSnapshot
+      ? await window.desktopAPI.getLicenseSnapshot()
+      : {
+          ownerEmail: licensingFallback.OWNER_EMAIL,
+          summary: licensingFallback.getLicenseDashboardSummary(),
+          customers: licensingFallback.listCustomers(),
+          licenses: licensingFallback.listLicenseRecords(),
+          activations: licensingFallback.listActivationLogs(),
+        };
     setSnapshot(nextSnapshot);
   };
 
@@ -145,19 +184,42 @@ export default function AdminLicensePanel({ isDark }) {
         ? new Date(Date.now() + normalizedDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-    const nextSnapshot = await window.desktopAPI.createLicenseRecord({
-      customerName,
-      email,
-      company,
-      phone,
-      expiresAt,
-      plan,
-      isAdmin: makeAdmin,
-      label,
-      notes,
-      maxDevices: Number.parseInt(maxDevices, 10) || 1,
-      permissions,
-    });
+    const nextSnapshot = window.desktopAPI?.createLicenseRecord
+      ? await window.desktopAPI.createLicenseRecord({
+          customerName,
+          email,
+          company,
+          phone,
+          expiresAt,
+          plan,
+          isAdmin: makeAdmin,
+          label,
+          notes,
+          maxDevices: Number.parseInt(maxDevices, 10) || 1,
+          permissions,
+        })
+      : (() => {
+          licensingFallback.createAndStoreLicenseRecord({
+            customerName,
+            email,
+            company,
+            phone,
+            expiresAt,
+            plan,
+            isAdmin: makeAdmin,
+            label,
+            notes,
+            maxDevices: Number.parseInt(maxDevices, 10) || 1,
+            permissions,
+          });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
 
     setSnapshot(nextSnapshot);
     setLatestKey(nextSnapshot.licenses?.[0]?.key || "");
@@ -184,53 +246,130 @@ export default function AdminLicensePanel({ isDark }) {
 
   const handleCreateCustomer = async () => {
     if (!email || !customerName) return;
-    const nextSnapshot = await window.desktopAPI.createLicenseCustomer({
-      name: customerName,
-      email,
-      company,
-      phone,
-      notes,
-      priority: "standard",
-    });
+    const nextSnapshot = window.desktopAPI?.createLicenseCustomer
+      ? await window.desktopAPI.createLicenseCustomer({
+          name: customerName,
+          email,
+          company,
+          phone,
+          notes,
+          priority: "standard",
+        })
+      : (() => {
+          licensingFallback.createCustomer({
+            name: customerName,
+            email,
+            company,
+            phone,
+            notes,
+            priority: "standard",
+          });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback(`Cliente creato: ${customerName}`);
   };
 
   const handleLicenseStatus = async (record, status) => {
-    const nextSnapshot = await window.desktopAPI.updateLicenseRecord(record.id, { status });
+    const nextSnapshot = window.desktopAPI?.updateLicenseRecord
+      ? await window.desktopAPI.updateLicenseRecord(record.id, { status })
+      : (() => {
+          licensingFallback.updateLicenseRecord(record.id, { status });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback(`Licenza ${statusLabel(status).toLowerCase()} per ${record.email}`);
   };
 
   const handleRenew = async (record) => {
-    const nextSnapshot = await window.desktopAPI.renewLicenseRecord({
-      id: record.id,
-      extraDays: Number.parseInt(renewDays, 10) || 365,
-    });
+    const nextSnapshot = window.desktopAPI?.renewLicenseRecord
+      ? await window.desktopAPI.renewLicenseRecord({
+          id: record.id,
+          extraDays: Number.parseInt(renewDays, 10) || 365,
+        })
+      : (() => {
+          licensingFallback.renewLicenseRecord({
+            id: record.id,
+            extraDays: Number.parseInt(renewDays, 10) || 365,
+          });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback(`Licenza rinnovata per ${record.email}`);
   };
 
   const handleReleaseDevice = async (record, deviceId) => {
-    const nextSnapshot = await window.desktopAPI.releaseLicenseDevice({ licenseId: record.id, deviceId });
+    const nextSnapshot = window.desktopAPI?.releaseLicenseDevice
+      ? await window.desktopAPI.releaseLicenseDevice({ licenseId: record.id, deviceId })
+      : (() => {
+          licensingFallback.releaseDeviceFromLicense({ licenseId: record.id, deviceId });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback("Dispositivo liberato.");
   };
 
   const handleCustomerPriority = async (customer, priority) => {
-    const nextSnapshot = await window.desktopAPI.updateLicenseCustomer(customer.id, { priority });
+    const nextSnapshot = window.desktopAPI?.updateLicenseCustomer
+      ? await window.desktopAPI.updateLicenseCustomer(customer.id, { priority })
+      : (() => {
+          licensingFallback.updateCustomer(customer.id, { priority });
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback(`Priorita aggiornata per ${customer.email}`);
   };
 
   const handleRecordPermissionToggle = async (record, permission) => {
-    const nextSnapshot = await window.desktopAPI.updateLicenseRecord(record.id, {
+    const patch = {
       permissions: {
         ...emptyPermissions(),
         ...(record.permissions || {}),
         [permission]: !(record.permissions || {})[permission],
       },
-    });
+    };
+    const nextSnapshot = window.desktopAPI?.updateLicenseRecord
+      ? await window.desktopAPI.updateLicenseRecord(record.id, patch)
+      : (() => {
+          licensingFallback.updateLicenseRecord(record.id, patch);
+          return {
+            ownerEmail: licensingFallback.OWNER_EMAIL,
+            summary: licensingFallback.getLicenseDashboardSummary(),
+            customers: licensingFallback.listCustomers(),
+            licenses: licensingFallback.listLicenseRecords(),
+            activations: licensingFallback.listActivationLogs(),
+          };
+        })();
     setSnapshot(nextSnapshot);
     setFeedback(`Permessi aggiornati per ${record.email}`);
   };
