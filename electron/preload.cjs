@@ -45,11 +45,27 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   saveMediaFile: (payload) => ipcRenderer.invoke("desktop:save-file", payload),
   setLicenseState: (payload) => ipcRenderer.send("desktop:set-license-state", payload),
   updaterAction: (action) => ipcRenderer.send("desktop:updater-action", action),
+  getLicenseSnapshot: () => ipcRenderer.invoke("desktop:license:get-snapshot"),
+  activateLicense: (payload) => ipcRenderer.invoke("desktop:license:activate", payload),
+  activateOwnerAccess: () => ipcRenderer.invoke("desktop:license:activate-owner"),
+  deactivateLicense: () => ipcRenderer.invoke("desktop:license:deactivate"),
+  createLicenseCustomer: (payload) => ipcRenderer.invoke("desktop:license:create-customer", payload),
+  updateLicenseCustomer: (id, patch) => ipcRenderer.invoke("desktop:license:update-customer", { id, patch }),
+  createLicenseRecord: (payload) => ipcRenderer.invoke("desktop:license:create-record", payload),
+  updateLicenseRecord: (id, patch) => ipcRenderer.invoke("desktop:license:update-record", { id, patch }),
+  renewLicenseRecord: (payload) => ipcRenderer.invoke("desktop:license:renew-record", payload),
+  releaseLicenseDevice: (payload) => ipcRenderer.invoke("desktop:license:release-device", payload),
+  importLegacyLicenseData: (payload) => ipcRenderer.invoke("desktop:license:import-legacy", payload),
   encryptStorageValue: (value, namespace) => encryptStorageValue(value, namespace),
   decryptStorageValue: (value, namespace) => decryptStorageValue(value, namespace),
   onUpdateStatus: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on("desktop:update-status", handler);
     return () => ipcRenderer.removeListener("desktop:update-status", handler);
+  },
+  onLicenseChanged: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("desktop:license-changed", handler);
+    return () => ipcRenderer.removeListener("desktop:license-changed", handler);
   },
 });

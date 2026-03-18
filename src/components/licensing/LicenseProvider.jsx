@@ -1,82 +1,108 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import {
-  activateLicense,
-  deactivateLicense,
-  getActiveLicense,
-  getLicensePermissions,
-  getStoredActivation,
-  issueOwnerLicense,
-  LICENSE_PERMISSIONS,
-  OWNER_EMAIL,
-  isOwnerEmail,
-} from "@/lib/licensing";
+import { LICENSE_PERMISSIONS, matchesOwnerEmail } from "@/lib/licensing";
+import { readProtectedJson } from "@/lib/secureStorage";
 
 const LicenseContext = createContext(null);
+const LEGACY_CUSTOMER_KEY = "toretto.licenses.customers";
+const LEGACY_LICENSE_KEY = "toretto.licenses.records";
+const LEGACY_ACTIVATION_KEY = "toretto.licenses.activation";
+const LEGACY_ACTIVATION_LOG_KEY = "toretto.licenses.activation-log";
+
+const emptyPermissions = {
+  [LICENSE_PERMISSIONS.ADMIN_PANEL]: false,
+  [LICENSE_PERMISSIONS.PROJECTS]: false,
+  [LICENSE_PERMISSIONS.CARD_MANAGER]: false,
+  [LICENSE_PERMISSIONS.VIDEO_BUTTONS]: false,
+  [LICENSE_PERMISSIONS.GENERAL_SETTINGS]: false,
+};
 
 export function LicenseProvider({ children }) {
-  const [activeLicense, setActiveLicense] = useState(() => getActiveLicense());
-  const [storedActivation, setStoredActivation] = useState(() => getStoredActivation());
+  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState({
+    ownerEmail: "",
+    activeLicense: null,
+    storedActivation: null,
+  });
 
   useEffect(() => {
-    const sync = () => {
-      setActiveLicense(getActiveLicense());
-      setStoredActivation(getStoredActivation());
+    let mounted = true;
+
+    const sync = async () => {
+      let nextSnapshot = await window.desktopAPI?.getLicenseSnapshot?.();
+      const shouldMigrate =
+        nextSnapshot
+        && (nextSnapshot.licenses?.length || 0) <= 1
+        && ((readProtectedJson(LEGACY_LICENSE_KEY, [], `license:${LEGACY_LICENSE_KEY}`)?.length || 0) > 0);
+
+      if (shouldMigrate) {
+        nextSnapshot = await window.desktopAPI.importLegacyLicenseData({
+          customers: readProtectedJson(LEGACY_CUSTOMER_KEY, [], `license:${LEGACY_CUSTOMER_KEY}`),
+          licenses: readProtectedJson(LEGACY_LICENSE_KEY, [], `license:${LEGACY_LICENSE_KEY}`),
+          activations: readProtectedJson(LEGACY_ACTIVATION_LOG_KEY, [], `license:${LEGACY_ACTIVATION_LOG_KEY}`),
+          activation: readProtectedJson(LEGACY_ACTIVATION_KEY, null, `license:${LEGACY_ACTIVATION_KEY}`),
+        });
+      }
+
+      if (mounted && nextSnapshot) {
+        setSnapshot(nextSnapshot);
+        setLoading(false);
+      }
     };
 
-    window.addEventListener("storage", sync);
-    window.addEventListener("toretto:license-changed", sync);
+    sync();
+
+    const unsubscribe = window.desktopAPI?.onLicenseChanged?.((nextSnapshot) => {
+      if (mounted && nextSnapshot) {
+        setSnapshot(nextSnapshot);
+        setLoading(false);
+      }
+    });
+
     return () => {
-      window.removeEventListener("storage", sync);
-      window.removeEventListener("toretto:license-changed", sync);
+      mounted = false;
+      unsubscribe?.();
     };
   }, []);
 
-  useEffect(() => {
-    if (window.desktopAPI?.setLicenseState) {
-      window.desktopAPI.setLicenseState({
-        hasActiveLicense: Boolean(activeLicense),
-        email: activeLicense?.email || "",
-      });
-    }
-  }, [activeLicense]);
+  const value = useMemo(() => {
+    const activeLicense = snapshot.activeLicense;
+    const storedActivation = snapshot.storedActivation;
+    const ownerEmail = snapshot.ownerEmail || "";
+    const isOwner = matchesOwnerEmail(activeLicense?.email, ownerEmail);
+    const permissions = activeLicense?.permissions || emptyPermissions;
+    const isAdmin = Boolean(activeLicense?.isAdmin) || isOwner || permissions[LICENSE_PERMISSIONS.ADMIN_PANEL];
 
-  const value = useMemo(
-    () => {
-      const permissions = getLicensePermissions(activeLicense);
-      const isOwner = isOwnerEmail(activeLicense?.email);
-      const isAdmin = Boolean(activeLicense?.isAdmin) || isOwner || permissions[LICENSE_PERMISSIONS.ADMIN_PANEL];
-
-      return {
-        activeLicense,
-        storedActivation,
-        hasActiveLicense: Boolean(activeLicense),
-        ownerEmail: OWNER_EMAIL,
-        isOwner,
-        isAdmin,
-        permissions,
-        hasPermission: (permission) => Boolean(permissions?.[permission]) || isOwner,
-        activate: ({ email, key }) => {
-          const activation = activateLicense({ email, key });
-          setStoredActivation(activation);
-          setActiveLicense(getActiveLicense());
-          return activation;
-        },
-        deactivate: () => {
-          deactivateLicense();
-          setStoredActivation(null);
-          setActiveLicense(null);
-        },
-        activateOwnerAccess: () => {
-          const key = issueOwnerLicense();
-          const activation = activateLicense({ email: OWNER_EMAIL, key });
-          setStoredActivation(activation);
-          setActiveLicense(getActiveLicense());
-          return activation;
-        },
-      };
-    },
-    [activeLicense, storedActivation]
-  );
+    return {
+      loading,
+      activeLicense,
+      storedActivation,
+      ownerEmail,
+      hasActiveLicense: Boolean(activeLicense),
+      isOwner,
+      isAdmin,
+      permissions,
+      hasPermission: (permission) => Boolean(permissions?.[permission]) || isOwner,
+      activate: async ({ email, key }) => {
+        const nextSnapshot = await window.desktopAPI.activateLicense({ email, key });
+        setSnapshot(nextSnapshot);
+        return nextSnapshot.activeLicense;
+      },
+      deactivate: async () => {
+        const nextSnapshot = await window.desktopAPI.deactivateLicense();
+        setSnapshot(nextSnapshot);
+      },
+      activateOwnerAccess: async () => {
+        const nextSnapshot = await window.desktopAPI.activateOwnerAccess();
+        setSnapshot(nextSnapshot);
+        return nextSnapshot.activeLicense;
+      },
+      refreshLicenseSnapshot: async () => {
+        const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
+        setSnapshot(nextSnapshot);
+        return nextSnapshot;
+      },
+    };
+  }, [loading, snapshot]);
 
   return <LicenseContext.Provider value={value}>{children}</LicenseContext.Provider>;
 }

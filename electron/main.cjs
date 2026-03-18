@@ -5,12 +5,14 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
+const { createService } = require("./license-service.cjs");
 
 let mainWindow = null;
 let startupWindow = null;
 let licensedUpdatesEnabled = false;
 let startupMode = false;
 let updateDecisionTaken = false;
+let licenseService = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -67,6 +69,15 @@ async function loadRenderer(win, hash = "/") {
 function sendUpdateStatus(payload) {
   if (startupWindow && !startupWindow.isDestroyed()) {
     startupWindow.webContents.send("desktop:update-status", payload);
+  }
+}
+
+function broadcastLicenseSnapshot(snapshot) {
+  const windows = BrowserWindow.getAllWindows();
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send("desktop:license-changed", snapshot);
+    }
   }
 }
 
@@ -250,6 +261,18 @@ ipcMain.handle("desktop:save-file", async (_event, payload) => {
   return pathToFileURL(filePath).toString();
 });
 
+ipcMain.handle("desktop:license:get-snapshot", async () => licenseService.getSnapshot());
+ipcMain.handle("desktop:license:activate", async (_event, payload) => licenseService.activateLicense(payload));
+ipcMain.handle("desktop:license:activate-owner", async () => licenseService.activateOwnerAccess());
+ipcMain.handle("desktop:license:deactivate", async () => licenseService.deactivateLicense());
+ipcMain.handle("desktop:license:create-customer", async (_event, payload) => licenseService.createCustomer(payload));
+ipcMain.handle("desktop:license:update-customer", async (_event, payload) => licenseService.updateCustomer(payload.id, payload.patch));
+ipcMain.handle("desktop:license:create-record", async (_event, payload) => licenseService.createLicenseRecord(payload));
+ipcMain.handle("desktop:license:update-record", async (_event, payload) => licenseService.updateLicenseRecord(payload.id, payload.patch));
+ipcMain.handle("desktop:license:renew-record", async (_event, payload) => licenseService.renewLicenseRecord(payload));
+ipcMain.handle("desktop:license:release-device", async (_event, payload) => licenseService.releaseDeviceFromLicense(payload));
+ipcMain.handle("desktop:license:import-legacy", async (_event, payload) => licenseService.importLegacyData(payload));
+
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {
   licensedUpdatesEnabled = Boolean(payload?.hasActiveLicense);
   await writeCachedLicenseState({
@@ -277,6 +300,10 @@ ipcMain.on("desktop:updater-action", async (_event, action) => {
 });
 
 app.whenReady().then(async () => {
+  licenseService = createService(app, (snapshot) => {
+    licensedUpdatesEnabled = Boolean(snapshot?.activeLicense);
+    broadcastLicenseSnapshot(snapshot);
+  }, writeCachedLicenseState);
   setupAutoUpdater();
   await startAppFlow();
 

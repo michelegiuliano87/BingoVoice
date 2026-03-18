@@ -1,37 +1,48 @@
 import React, { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useLicense } from "@/components/licensing/LicenseProvider";
-import { isOwnerEmail } from "@/lib/licensing";
+import { matchesOwnerEmail } from "@/lib/licensing";
 
 export default function LicenseGate({ children }) {
-  const { hasActiveLicense, activate, activateOwnerAccess, ownerEmail } = useLicense();
+  const { loading, hasActiveLicense, activate, activateOwnerAccess, ownerEmail } = useLicense();
   const [email, setEmail] = useState("");
   const [licenseKey, setLicenseKey] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const ownerMode = useMemo(() => isOwnerEmail(email), [email]);
+  const ownerMode = useMemo(() => matchesOwnerEmail(email, ownerEmail), [email, ownerEmail]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-xl rounded-[32px] border border-white/10 bg-slate-900/90 p-8 shadow-2xl text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-200">BingoVoice</p>
+          <h2 className="mt-4 text-2xl font-black">Verifica licenza in corso</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (hasActiveLicense) {
     return children;
   }
 
-  const handleActivate = (e) => {
+  const handleActivate = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
     try {
-      activate({ email, key: licenseKey });
+      await activate({ email, key: licenseKey });
       setSuccess("Licenza attivata correttamente.");
     } catch (activationError) {
       setError(activationError.message || "Attivazione non riuscita");
     }
   };
 
-  const handleOwnerAccess = () => {
+  const handleOwnerAccess = async () => {
     setError("");
     setSuccess("");
     try {
-      activateOwnerAccess();
+      await activateOwnerAccess();
       setSuccess("Accesso proprietario attivato.");
     } catch (activationError) {
       setError(activationError.message || "Accesso proprietario non riuscito");

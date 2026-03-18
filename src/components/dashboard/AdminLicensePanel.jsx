@@ -14,20 +14,9 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  createAndStoreLicenseRecord,
   DEFAULT_LICENSE_PERMISSIONS,
-  createCustomer,
-  getLicenseDashboardSummary,
   LICENSE_STATUS,
   LICENSE_PERMISSIONS,
-  listActivationLogs,
-  listCustomers,
-  listLicenseRecords,
-  OWNER_EMAIL,
-  releaseDeviceFromLicense,
-  renewLicenseRecord,
-  updateCustomer,
-  updateLicenseRecord,
 } from "@/lib/licensing";
 
 const DEFAULT_DAYS = 365;
@@ -88,20 +77,43 @@ export default function AdminLicensePanel({ isDark }) {
   const [maxDevices, setMaxDevices] = useState("1");
   const [latestKey, setLatestKey] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [refreshToken, setRefreshToken] = useState(0);
   const [renewDays, setRenewDays] = useState("365");
   const [permissions, setPermissions] = useState(emptyPermissions);
+  const [snapshot, setSnapshot] = useState({
+    ownerEmail: "",
+    summary: { customers: 0, licenses: 0, activeLicenses: 0, expiringSoon: 0, activations: 0 },
+    customers: [],
+    licenses: [],
+    activations: [],
+  });
 
   useEffect(() => {
-    const sync = () => setRefreshToken((value) => value + 1);
-    window.addEventListener("toretto:license-changed", sync);
-    return () => window.removeEventListener("toretto:license-changed", sync);
+    let mounted = true;
+
+    const sync = async () => {
+      const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
+      if (mounted && nextSnapshot) {
+        setSnapshot(nextSnapshot);
+      }
+    };
+
+    sync();
+    const unsubscribe = window.desktopAPI?.onLicenseChanged?.((nextSnapshot) => {
+      if (mounted && nextSnapshot) {
+        setSnapshot(nextSnapshot);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
   }, []);
 
-  const summary = useMemo(() => getLicenseDashboardSummary(), [refreshToken]);
-  const customers = useMemo(() => listCustomers(), [refreshToken]);
-  const licenses = useMemo(() => listLicenseRecords(), [refreshToken]);
-  const activations = useMemo(() => listActivationLogs(), [refreshToken]);
+  const summary = useMemo(() => snapshot.summary || {}, [snapshot]);
+  const customers = useMemo(() => snapshot.customers || [], [snapshot]);
+  const licenses = useMemo(() => snapshot.licenses || [], [snapshot]);
+  const activations = useMemo(() => snapshot.activations || [], [snapshot]);
 
   const bg = isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100";
   const text = isDark ? "text-white" : "text-gray-900";
@@ -111,7 +123,10 @@ export default function AdminLicensePanel({ isDark }) {
     ? "border-gray-600 bg-gray-900 text-white"
     : "border-gray-200 bg-white text-gray-900";
 
-  const forceRefresh = () => setRefreshToken((value) => value + 1);
+  const forceRefresh = async () => {
+    const nextSnapshot = await window.desktopAPI.getLicenseSnapshot();
+    setSnapshot(nextSnapshot);
+  };
 
   const copyToClipboard = async (value) => {
     try {
@@ -122,7 +137,7 @@ export default function AdminLicensePanel({ isDark }) {
     }
   };
 
-  const handleCreateLicense = (e) => {
+  const handleCreateLicense = async (e) => {
     e.preventDefault();
     const normalizedDays = Number.parseInt(days, 10);
     const expiresAt =
@@ -130,7 +145,7 @@ export default function AdminLicensePanel({ isDark }) {
         ? new Date(Date.now() + normalizedDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-    const record = createAndStoreLicenseRecord({
+    const nextSnapshot = await window.desktopAPI.createLicenseRecord({
       customerName,
       email,
       company,
@@ -144,8 +159,9 @@ export default function AdminLicensePanel({ isDark }) {
       permissions,
     });
 
-    setLatestKey(record.key);
-    setFeedback(`Licenza creata per ${record.email}`);
+    setSnapshot(nextSnapshot);
+    setLatestKey(nextSnapshot.licenses?.[0]?.key || "");
+    setFeedback(`Licenza creata per ${email}`);
     setEmail("");
     setCustomerName("");
     setCompany("");
@@ -157,7 +173,6 @@ export default function AdminLicensePanel({ isDark }) {
     setMakeAdmin(false);
     setMaxDevices("1");
     setPermissions(emptyPermissions());
-    forceRefresh();
   };
 
   const handlePermissionToggle = (permission) => {
@@ -167,9 +182,9 @@ export default function AdminLicensePanel({ isDark }) {
     }));
   };
 
-  const handleCreateCustomer = () => {
+  const handleCreateCustomer = async () => {
     if (!email || !customerName) return;
-    createCustomer({
+    const nextSnapshot = await window.desktopAPI.createLicenseCustomer({
       name: customerName,
       email,
       company,
@@ -177,47 +192,47 @@ export default function AdminLicensePanel({ isDark }) {
       notes,
       priority: "standard",
     });
+    setSnapshot(nextSnapshot);
     setFeedback(`Cliente creato: ${customerName}`);
-    forceRefresh();
   };
 
-  const handleLicenseStatus = (record, status) => {
-    updateLicenseRecord(record.id, { status });
+  const handleLicenseStatus = async (record, status) => {
+    const nextSnapshot = await window.desktopAPI.updateLicenseRecord(record.id, { status });
+    setSnapshot(nextSnapshot);
     setFeedback(`Licenza ${statusLabel(status).toLowerCase()} per ${record.email}`);
-    forceRefresh();
   };
 
-  const handleRenew = (record) => {
-    renewLicenseRecord({
+  const handleRenew = async (record) => {
+    const nextSnapshot = await window.desktopAPI.renewLicenseRecord({
       id: record.id,
       extraDays: Number.parseInt(renewDays, 10) || 365,
     });
+    setSnapshot(nextSnapshot);
     setFeedback(`Licenza rinnovata per ${record.email}`);
-    forceRefresh();
   };
 
-  const handleReleaseDevice = (record, deviceId) => {
-    releaseDeviceFromLicense({ licenseId: record.id, deviceId });
+  const handleReleaseDevice = async (record, deviceId) => {
+    const nextSnapshot = await window.desktopAPI.releaseLicenseDevice({ licenseId: record.id, deviceId });
+    setSnapshot(nextSnapshot);
     setFeedback("Dispositivo liberato.");
-    forceRefresh();
   };
 
-  const handleCustomerPriority = (customer, priority) => {
-    updateCustomer(customer.id, { priority });
+  const handleCustomerPriority = async (customer, priority) => {
+    const nextSnapshot = await window.desktopAPI.updateLicenseCustomer(customer.id, { priority });
+    setSnapshot(nextSnapshot);
     setFeedback(`Priorita aggiornata per ${customer.email}`);
-    forceRefresh();
   };
 
-  const handleRecordPermissionToggle = (record, permission) => {
-    updateLicenseRecord(record.id, {
+  const handleRecordPermissionToggle = async (record, permission) => {
+    const nextSnapshot = await window.desktopAPI.updateLicenseRecord(record.id, {
       permissions: {
         ...emptyPermissions(),
         ...(record.permissions || {}),
         [permission]: !(record.permissions || {})[permission],
       },
     });
+    setSnapshot(nextSnapshot);
     setFeedback(`Permessi aggiornati per ${record.email}`);
-    forceRefresh();
   };
 
   const permissionOptions = [
@@ -236,7 +251,7 @@ export default function AdminLicensePanel({ isDark }) {
           <h3 className={`text-sm font-semibold uppercase tracking-wider ${text}`}>Admin Licenze Pro</h3>
         </div>
         <p className={`mt-2 text-xs ${sub}`}>
-          Gestionale completo licenze BingoVoice. Owner prioritario: {OWNER_EMAIL}
+          Gestionale completo licenze BingoVoice. Owner prioritario: {snapshot.ownerEmail || "-"}
         </p>
       </div>
 
