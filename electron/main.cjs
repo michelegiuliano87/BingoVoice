@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -182,13 +182,6 @@ function setupAutoUpdater() {
       setTimeout(() => {
         closeStartupAndOpenMain();
       }, 1200);
-    } else if (mainWindow && !mainWindow.isDestroyed()) {
-      await dialog.showMessageBox(mainWindow, {
-        type: "error",
-        title: "Aggiornamento non riuscito",
-        message: "Non sono riuscito a controllare gli aggiornamenti di BingoVoice.",
-        detail: error?.message || "Errore sconosciuto.",
-      });
     }
   });
 }
