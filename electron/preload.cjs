@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   saveMediaFile: (payload) => ipcRenderer.invoke("desktop:save-file", payload),
   setLicenseState: (payload) => ipcRenderer.send("desktop:set-license-state", payload),
   updaterAction: (action) => ipcRenderer.send("desktop:updater-action", action),
+  readEntityCollection: (entityName) => ipcRenderer.invoke("desktop:entity:read", entityName),
+  writeEntityCollection: (entityName, items) =>
+    ipcRenderer.invoke("desktop:entity:write", { entityName, items }),
+  removeEntityCollection: (entityName) => ipcRenderer.invoke("desktop:entity:remove", entityName),
   getLicenseSnapshot: () => ipcRenderer.invoke("desktop:license:get-snapshot"),
   activateLicense: (payload) => ipcRenderer.invoke("desktop:license:activate", payload),
   activateOwnerAccess: () => ipcRenderer.invoke("desktop:license:activate-owner"),

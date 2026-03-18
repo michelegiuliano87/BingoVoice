@@ -213,6 +213,10 @@ function getLicenseStatePath() {
   return path.join(app.getPath("userData"), "license-state.json");
 }
 
+function getEntityStorePath(entityName) {
+  return path.join(app.getPath("userData"), `entity-${entityName}.json`);
+}
+
 async function readCachedLicenseState() {
   try {
     const raw = await fs.readFile(getLicenseStatePath(), "utf8");
@@ -371,6 +375,36 @@ ipcMain.handle("desktop:project-package:open", async () => {
     filePath,
     bytes: raw,
   };
+});
+
+ipcMain.handle("desktop:entity:read", async (_event, entityName) => {
+  try {
+    const raw = await fs.readFile(getEntityStorePath(entityName), "utf8");
+    const parsed = decryptFileJson(raw, `entity:${entityName}`);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle("desktop:entity:write", async (_event, payload) => {
+  const { entityName, items } = payload || {};
+  if (!entityName) return { success: false };
+  await fs.writeFile(
+    getEntityStorePath(entityName),
+    encryptFileJson(items || [], `entity:${entityName}`),
+    "utf8",
+  );
+  return { success: true };
+});
+
+ipcMain.handle("desktop:entity:remove", async (_event, entityName) => {
+  try {
+    await fs.unlink(getEntityStorePath(entityName));
+  } catch {
+    // ignore
+  }
+  return { success: true };
 });
 
 ipcMain.handle("desktop:license:get-snapshot", async () => licenseService.getSnapshot());

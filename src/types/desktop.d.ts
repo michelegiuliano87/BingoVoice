@@ -14,6 +14,9 @@ declare global {
   interface Window {
     desktopAPI?: {
       saveMediaFile: (payload: { name: string; bytes: number[] }) => Promise<string>;
+      readEntityCollection: (entityName: string) => Promise<any[]>;
+      writeEntityCollection: (entityName: string, items: any[]) => Promise<{ success: boolean }>;
+      removeEntityCollection: (entityName: string) => Promise<{ success: boolean }>;
       getLicenseSnapshot: () => Promise<LicenseSnapshot>;
       activateLicense: (payload: { email: string; key: string }) => Promise<LicenseSnapshot>;
       activateOwnerAccess: () => Promise<LicenseSnapshot>;

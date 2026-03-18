@@ -1,4 +1,4 @@
-import { readProtectedJson, writeProtectedJson } from "@/lib/secureStorage";
+import { readProtectedJson, writeProtectedJson, removeProtectedItem } from "@/lib/secureStorage";
 
 const STORAGE_PREFIX = "toretto.local";
 const ENTITY_NAMES = [
@@ -13,14 +13,35 @@ const ENTITY_NAMES = [
 
 const getStorageKey = (entityName) => `${STORAGE_PREFIX}.${entityName}`;
 
-const readCollection = (entityName) => {
+const readCollection = async (entityName) => {
   if (typeof window === "undefined") return [];
+
+  if (window.desktopAPI?.readEntityCollection) {
+    const stored = await window.desktopAPI.readEntityCollection(entityName);
+    if (Array.isArray(stored) && stored.length) {
+      return stored;
+    }
+
+    const legacy = readProtectedJson(getStorageKey(entityName), [], `entity:${entityName}`);
+    if (Array.isArray(legacy) && legacy.length) {
+      await window.desktopAPI.writeEntityCollection(entityName, legacy);
+      removeProtectedItem(getStorageKey(entityName));
+      return legacy;
+    }
+
+    return Array.isArray(stored) ? stored : [];
+  }
+
   const parsed = readProtectedJson(getStorageKey(entityName), [], `entity:${entityName}`);
   return Array.isArray(parsed) ? parsed : [];
 };
 
-const writeCollection = (entityName, items) => {
-  writeProtectedJson(getStorageKey(entityName), items, `entity:${entityName}`);
+const writeCollection = async (entityName, items) => {
+  if (window?.desktopAPI?.writeEntityCollection) {
+    await window.desktopAPI.writeEntityCollection(entityName, items);
+  } else {
+    writeProtectedJson(getStorageKey(entityName), items, `entity:${entityName}`);
+  }
   window.dispatchEvent(
     new CustomEvent("bingovoice:data-changed", {
       detail: { entityName, timestamp: Date.now() },
@@ -59,7 +80,7 @@ const sortItems = (items, sortBy) => {
 
 const makeEntityApi = (entityName) => ({
   async list(sortBy, limit) {
-    const items = sortItems(readCollection(entityName), sortBy);
+    const items = sortItems(await readCollection(entityName), sortBy);
     if (typeof limit === "number") {
       return items.slice(0, limit);
     }
@@ -67,7 +88,7 @@ const makeEntityApi = (entityName) => ({
   },
 
   async create(payload) {
-    const items = readCollection(entityName);
+    const items = await readCollection(entityName);
     const now = new Date().toISOString();
     const created = {
       id: crypto.randomUUID(),
@@ -76,12 +97,12 @@ const makeEntityApi = (entityName) => ({
       ...payload,
     };
     items.push(created);
-    writeCollection(entityName, items);
+    await writeCollection(entityName, items);
     return created;
   },
 
   async update(id, patch) {
-    const items = readCollection(entityName);
+    const items = await readCollection(entityName);
     const index = items.findIndex((item) => item.id === id);
     if (index === -1) {
       throw new Error(`${entityName} ${id} non trovato`);
@@ -94,14 +115,14 @@ const makeEntityApi = (entityName) => ({
       updated_date: new Date().toISOString(),
     };
     items[index] = updated;
-    writeCollection(entityName, items);
+    await writeCollection(entityName, items);
     return updated;
   },
 
   async delete(id) {
-    const items = readCollection(entityName);
+    const items = await readCollection(entityName);
     const filtered = items.filter((item) => item.id !== id);
-    writeCollection(entityName, filtered);
+    await writeCollection(entityName, filtered);
     return { success: true };
   },
 });
