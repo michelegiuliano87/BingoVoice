@@ -1,7 +1,7 @@
 {
   "name": "toretto",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -112,7 +112,8 @@
       {
         "provider": "github",
         "owner": "michelegiuliano87",
-        "repo": "BingoVoice"
+        "repo": "BingoVoice",
+        "releaseType": "release"
       }
     ],
     "files": [
