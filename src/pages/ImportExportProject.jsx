@@ -71,10 +71,6 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
-      if (!window?.desktopAPI?.saveProjectPackage) {
-        setFeedback("Funzione di esportazione non disponibile in questa modalita. Apri il programma desktop.");
-        return;
-      }
       const packageData = await buildProjectPackage({
         project: selectedProject,
         mediaItems: projectMedia,
@@ -83,10 +79,32 @@ export default function ImportExportProject() {
         videoButtons,
       });
 
-      const result = await window.desktopAPI.saveProjectPackage({
-        suggestedName: `${selectedProject.name.replace(/[\\/:*?"<>|]+/g, "-") || "progetto"}.bvpack`,
-        packageData,
-      });
+      const suggestedName = `${selectedProject.name.replace(/[\\/:*?"<>|]+/g, "-") || "progetto"}.bvpack`;
+      let result = null;
+
+      if (window?.desktopAPI?.saveProjectPackage) {
+        result = await window.desktopAPI.saveProjectPackage({
+          suggestedName,
+          packageData,
+        });
+      } else if (window?.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "BingoVoice Project Package",
+              accept: { "application/json": [".bvpack"] },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(packageData, null, 2));
+        await writable.close();
+        result = { canceled: false, filePath: handle?.name || suggestedName };
+      } else {
+        setFeedback("Funzione di esportazione non disponibile in questa modalita.");
+        return;
+      }
 
       if (!result?.canceled) {
         setFeedback(`Progetto esportato in: ${result.filePath}`);
@@ -103,11 +121,27 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
-      if (!window?.desktopAPI?.openProjectPackage) {
-        setFeedback("Funzione di importazione non disponibile in questa modalita. Apri il programma desktop.");
+      let result = null;
+
+      if (window?.desktopAPI?.openProjectPackage) {
+        result = await window.desktopAPI.openProjectPackage();
+      } else if (window?.showOpenFilePicker) {
+        const [handle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: "BingoVoice Project Package",
+              accept: { "application/json": [".bvpack", ".json"] },
+            },
+          ],
+          multiple: false,
+        });
+        const file = await handle.getFile();
+        const raw = await file.text();
+        result = { canceled: false, filePath: file.name, packageData: JSON.parse(raw) };
+      } else {
+        setFeedback("Funzione di importazione non disponibile in questa modalita.");
         return;
       }
-      const result = await window.desktopAPI.openProjectPackage();
       if (result?.canceled || !result.packageData) {
         setBusyAction("");
         return;
