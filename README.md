@@ -1,302 +1,134 @@
 # BingoVoice
 
-BingoVoice e' un software desktop per Windows pensato per gestire estrazioni stile tombola basate su immagini, audio e contenuti multimediali, con schermo pubblico separato e gestione licenze.
+BingoVoice e' un programma desktop per Windows pensato per gestire un gioco stile tombola in chiave moderna, con immagini, audio, lucky wheel e schermo pubblico dedicato.
 
-## Cos'e' BingoVoice
+## Installazione del programma
 
-BingoVoice permette di organizzare una tombola multimediale in cui:
+BingoVoice e' fornito come applicazione desktop per Windows.
 
-- l'admin prepara uno o piu' progetti
-- ogni progetto contiene immagini e audio associati
-- durante l'estrazione il pubblico vede lo schermo dedicato in tempo reale
-- prima dell'uscita finale viene mostrata una lucky wheel animata
-- le estrazioni finiscono su un tabellone da 90 posti
-- e' possibile usare bonus voice, video speciali e contenuti dedicati per evento
+Per installarlo sul PC:
 
-In pratica e' una versione scenica e gestibile da PC della tombola, pensata per serate, eventi, locali e format personalizzati.
+1. Scarica o copia il file di installazione `BingoVoice Setup`.
+2. Avvia il file con doppio clic.
+3. Segui la procedura guidata fino al completamento.
+4. Al termine dell'installazione, apri `BingoVoice` dal desktop o dal menu Start.
 
-## Funzioni principali
+## Prima attivazione
 
-- Dashboard admin per la gestione dell'estrazione
-- Schermo pubblico separato per il pubblico
-- Lucky wheel prima di ogni estrazione
-- Progetti con miniatura dedicata
-- Media associati a ogni progetto
-- Audio dedicato a ogni immagine
-- Bonus Voice e Panariello Band
-- Gestione cartelle di gioco
-- Pannello licenze locale avanzato
-- Aggiornamenti automatici tramite GitHub Releases
-- Accesso a moduli tramite permessi sulla licenza
+Alla prima apertura il programma richiede una licenza attiva.
 
-## Architettura attuale
+Per completare l'attivazione:
 
-Il progetto e' stato convertito in applicazione desktop Electron e non dipende piu' da Base44 per il funzionamento operativo.
+1. Inserisci l'email associata alla licenza.
+2. Inserisci la chiave di attivazione ricevuta.
+3. Conferma l'accesso per sbloccare il programma.
 
-Tecnologie principali:
+Una volta attivato, BingoVoice permette di accedere alle funzioni abilitate per quella licenza.
 
-- Electron
-- React
-- Vite
-- React Query
-- Electron Builder
-- Electron Updater
+## Utilizzo su un altro PC
 
-Nome tecnico interno nel codice:
+Per installare BingoVoice su un altro computer:
 
-- `toretto`
+1. trasferisci il file `BingoVoice Setup` sul nuovo PC
+2. completa l'installazione
+3. attiva il programma con una licenza valida
+4. carica o importa i contenuti necessari per il gioco
 
-Nome visibile per utenti e clienti:
+## Aggiornamenti
 
-- `BingoVoice`
+Le versioni abilitate agli aggiornamenti automatici controllano la disponibilita' di nuove release all'avvio del programma.
 
-## Come funziona il gioco
+Se e' disponibile un aggiornamento:
 
-### 1. Preparazione
+1. compare un avviso prima dell'apertura del programma
+2. puoi confermare l'aggiornamento
+3. viene mostrata la barra di avanzamento del download
+4. al termine il programma installa la nuova versione e si riavvia
 
-L'admin crea un progetto e carica:
+## Requisiti consigliati
 
-- immagini
-- audio per le immagini
-- eventuali contenuti bonus
-- cartelle
-- video speciali
-- impostazioni generali
+- Windows 10 o superiore
+- connessione internet per attivazione e aggiornamenti
+- monitor principale per il pannello di controllo
+- secondo schermo consigliato per la proiezione pubblica
+- casse audio consigliate per effetti sonori e contenuti multimediali
 
-### 2. Selezione progetto
+## A chi e' dedicato BingoVoice
 
-Dalla dashboard viene scelto il progetto attivo tramite miniatura.
+BingoVoice e' pensato per organizzatori, animatori e professionisti che vogliono trasformare una normale tombola in un'esperienza piu' coinvolgente e scenografica.
 
-### 3. Estrazione
+E' adatto per:
 
-Quando si preme `ESTRAI`:
+- eventi dal vivo
+- serate a tema
+- locali e sale evento
+- feste private
+- spettacoli con pubblico
+- format personalizzati con immagini, audio e contenuti multimediali
 
-- il sistema sceglie casualmente un media non ancora estratto
-- sullo schermo pubblico appare la lucky wheel
-- al termine esce l'immagine finale
-- l'elemento viene salvato nella cronologia e nel tabellone
+## Come funziona durante un evento
 
-### 4. Bonus Voice
+L'organizzatore prepara in anticipo uno o piu' progetti di gioco, caricando immagini, audio e contenuti dedicati.
 
-Se il progetto ha un elemento marcato come bonus, viene usato quello.
+Durante la serata:
 
-Se non e' stato marcato manualmente:
+1. si seleziona il progetto dalla dashboard
+2. si avvia l'estrazione
+3. sullo schermo pubblico compare una lucky wheel animata
+4. viene mostrato il contenuto estratto
+5. ogni uscita viene registrata nel tabellone di gioco
 
-- il programma sceglie un bonus casuale stabile per quel progetto
-- il pulsante `Mostra Bonus Voice` mostra proprio quel bonus
-- la logica resta coerente anche in estrazione
+Questo permette di gestire l'evento da un PC di controllo, mentre il pubblico segue tutto in tempo reale sullo schermo dedicato.
 
-## Pagine principali
+## Punti di forza
 
-### Dashboard
+- interfaccia semplice da usare
+- gestione visuale dei progetti
+- estrazioni casuali con effetto scenico
+- supporto a immagini e audio
+- schermo pubblico separato
+- esperienza piu' moderna rispetto alla tombola tradizionale
 
-Contiene:
+## Perche' scegliere BingoVoice
 
-- selezione progetto
-- cronologia estrazioni
-- pulsante estrazione
-- controllo cartella
-- lista media del progetto
-- pulsante bonus
-- gestione video e impostazioni, se abilitate dalla licenza
+BingoVoice nasce per offrire un modo piu' moderno, ordinato e spettacolare di gestire un gioco in stile tombola.
 
-### Progetti
+Rispetto a una gestione tradizionale, permette di:
 
-Permette di:
+- rendere ogni estrazione piu' coinvolgente
+- personalizzare il gioco con immagini e audio
+- migliorare la visibilita' per il pubblico
+- organizzare meglio contenuti e progetti
+- offrire un'esperienza piu' professionale durante eventi e serate
 
-- creare un progetto
-- modificare titolo e descrizione
-- caricare miniatura quadrata
-- aggiungere media
-- modificare media gia' caricati
-- usare il progetto poi in dashboard
+BingoVoice e' la soluzione ideale per chi vuole unire intrattenimento, praticita' e impatto visivo in un unico programma desktop.
 
-### Carica Cartelle
+## Screenshot del programma
 
-Permette di:
+### 1. Schermata di accesso
 
-- creare cartelle da 15 elementi
-- filtrare per progetto
-- modificare cartelle esistenti
+Pagina iniziale per l'attivazione del programma tramite email e chiave licenza.
 
-### Pannello Admin
+### 2. Dashboard principale
 
-Permette di:
+Centro di controllo del gioco, con selezione progetto, pulsante di estrazione, cronologia, bonus e impostazioni principali.
 
-- creare clienti
-- creare licenze
-- gestire durata e numero dispositivi
-- revocare, sospendere e rinnovare licenze
-- assegnare moduli attivi per ogni cliente
+### 3. Pagina Progetti
 
-## Sistema licenze
+Area dedicata alla creazione e modifica dei progetti, con miniatura, descrizione ed elementi media associati.
 
-Il programma si apre solo con licenza valida.
+### 4. Gestione Cartelle
 
-Il proprietario prioritario e':
+Schermata per creare, modificare e controllare le cartelle collegate ai progetti di gioco.
 
-- `michele.giuliano.87@hotmail.com`
+### 5. Lucky Wheel
 
-Le licenze possono attivare o bloccare moduli specifici:
+Animazione mostrata sullo schermo pubblico durante l'estrazione, prima della selezione finale dell'elemento.
 
-- `Pannello Admin`
-- `Crea/Modifica Progetti`
-- `Carica Cartelle`
-- `Pulsanti Video`
-- `Impostazioni Generali`
+### 6. Risultato estrazione
 
-Questo permette di installare la stessa app su piu' PC clienti, ma mostrare solo le funzioni previste per quella licenza.
+Visualizzazione del contenuto estratto sullo schermo pubblico, con immagine in primo piano e titolo evidenziato.
 
-## Aggiornamenti automatici
+### 7. Tabellone pubblico
 
-Gli aggiornamenti usano GitHub Releases.
-
-Flusso attuale:
-
-1. il cliente apre BingoVoice
-2. se la licenza attiva e' salvata sul PC, prima della dashboard parte il controllo aggiornamenti
-3. se esiste una nuova versione, appare una schermata iniziale dedicata
-4. l'utente puo' scegliere di aggiornare
-5. parte la barra di avanzamento download
-6. al termine il programma si riavvia e installa l'update
-7. solo dopo si apre la dashboard
-
-Note importanti:
-
-- la prima installazione o il primo passaggio a una versione con updater va fatto manualmente
-- dopo, gli aggiornamenti successivi arrivano via GitHub Releases
-- il progetto e' configurato per pubblicare release pubbliche, non draft
-
-## Repository GitHub
-
-Repository ufficiale:
-
-- [https://github.com/michelegiuliano87/BingoVoice](https://github.com/michelegiuliano87/BingoVoice)
-
-Le release pubbliche vengono pubblicate qui:
-
-- [https://github.com/michelegiuliano87/BingoVoice/releases](https://github.com/michelegiuliano87/BingoVoice/releases)
-
-## Installazione locale per sviluppo
-
-### Prerequisiti
-
-- Windows
-- Node.js
-- npm
-- Git
-
-### Avvio progetto
-
-```bash
-npm install
-npm run dev
-```
-
-### Avvio desktop locale
-
-```bash
-npm run dev:desktop
-```
-
-## Build desktop
-
-Per creare l'app desktop:
-
-```bash
-npm run dist
-```
-
-Output principale:
-
-- installer Windows nella cartella `release`
-
-## Release automatica su GitHub
-
-Per pubblicare una nuova versione:
-
-1. aggiorna `version` nel file `package.json`
-2. fai commit e push su `main`
-3. esegui:
-
-```bash
-npm run release
-```
-
-Lo script:
-
-- genera build e installer
-- crea o aggiorna la release GitHub
-- carica installer e file di update
-
-## Procedura consigliata per pubblicare un aggiornamento
-
-1. modifica il progetto
-2. aggiorna la versione in `package.json`
-3. esegui build locale di controllo:
-
-```bash
-npm run build
-```
-
-4. fai commit e push:
-
-```bash
-git add .
-git commit -m "Publish version x.y.z"
-git push origin main
-```
-
-5. pubblica la release:
-
-```bash
-npm run release
-```
-
-## Distribuzione a un cliente
-
-Sul PC del cliente puoi:
-
-- installare BingoVoice con il setup `.exe`
-- attivare la licenza
-- abilitare o meno i moduli dal pannello licenze owner
-
-Se vuoi trasferire una configurazione completa gia' pronta, servono anche i dati locali del programma oppure una futura funzione di export/import configurazione cliente.
-
-## Stato attuale del progetto
-
-Funzionalita' gia' implementate:
-
-- desktop app Electron
-- gestione licenze locale avanzata
-- owner prioritario
-- moduli per licenza
-- dashboard con versione visibile
-- tema persistente
-- progetti dedicati
-- lucky wheel
-- update automatici via GitHub
-- schermata update iniziale con progress bar
-
-## Roadmap consigliata
-
-Possibili sviluppi futuri:
-
-- export/import configurazione cliente
-- backend remoto per licenze
-- revoca online centralizzata
-- attivazioni cloud per dispositivo
-- pannello web admin separato
-- pulizia automatica della cartella `release`
-- firma applicazione Windows
-
-## Note operative
-
-- Il nome interno del progetto resta `toretto`
-- Il nome visibile all'utente finale resta `BingoVoice`
-- Alcune vecchie versioni senza updater non possono ricevere update automatici finche' non vengono aggiornate almeno una volta manualmente
-
-## Contatti proprietario
-
-- Email owner: `michele.giuliano.87@hotmail.com`
-
+Vista generale del tabellone dove vengono posizionati progressivamente gli elementi estratti durante la partita.
