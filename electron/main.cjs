@@ -329,7 +329,7 @@ async function startAppFlow() {
   }
   licensedUpdatesEnabled = hasActiveLicense;
 
-  if (app.isPackaged && licensedUpdatesEnabled) {
+  if (app.isPackaged) {
     startupMode = true;
     updateDecisionTaken = false;
     await createStartupWindow();
