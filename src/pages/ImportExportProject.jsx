@@ -71,6 +71,10 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
+      if (!window?.desktopAPI?.saveProjectPackage) {
+        setFeedback("Funzione di esportazione non disponibile in questa modalita. Apri il programma desktop.");
+        return;
+      }
       const packageData = await buildProjectPackage({
         project: selectedProject,
         mediaItems: projectMedia,
@@ -99,6 +103,10 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
+      if (!window?.desktopAPI?.openProjectPackage) {
+        setFeedback("Funzione di importazione non disponibile in questa modalita. Apri il programma desktop.");
+        return;
+      }
       const result = await window.desktopAPI.openProjectPackage();
       if (result?.canceled || !result.packageData) {
         setBusyAction("");
