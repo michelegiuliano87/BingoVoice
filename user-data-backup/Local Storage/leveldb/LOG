@@ -1,0 +1,18 @@
+2026/03/18-16:31:19.576 6438 Reusing MANIFEST C:\Users\miche\AppData\Roaming\toretto\Local Storage\leveldb/MANIFEST-000001
+2026/03/18-16:31:19.583 6438 Recovering log #56
+2026/03/18-16:31:19.584 6438 Reusing old log C:\Users\miche\AppData\Roaming\toretto\Local Storage\leveldb/000056.log 
+2026/03/18-16:32:19.599 5d98 Level-0 table #60: started
+2026/03/18-16:32:19.961 5d98 Level-0 table #60: 47421478 bytes OK
+2026/03/18-16:32:19.970 5d98 Delete type=0 #56
+2026/03/18-16:32:19.979 5d98 Compacting 4@0 + 1@1 files
+2026/03/18-16:32:20.369 5d98 Generated table #61@0: 11 keys, 44831013 bytes
+2026/03/18-16:32:20.404 5d98 Generated table #62@0: 2 keys, 2576211 bytes
+2026/03/18-16:32:20.424 5d98 Generated table #63@0: 4 keys, 1797 bytes
+2026/03/18-16:32:20.424 5d98 Compacted 4@0 + 1@1 files => 47409021 bytes
+2026/03/18-16:32:20.426 5d98 compacted to: files[ 0 3 0 0 0 0 0 ]
+2026/03/18-16:32:20.426 5d98 Delete type=2 #50
+2026/03/18-16:32:20.426 5d98 Delete type=2 #52
+2026/03/18-16:32:20.427 5d98 Delete type=2 #54
+2026/03/18-16:32:20.427 5d98 Delete type=2 #57
+2026/03/18-16:32:20.427 5d98 Delete type=2 #60
+2026/03/18-16:32:20.434 5d98 Moved #61 to level-2 44831013 bytes OK: files[ 0 2 1 0 0 0 0 ]
