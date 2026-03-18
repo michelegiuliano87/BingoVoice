@@ -50,6 +50,7 @@
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
 import Projects from './pages/Projects';
+import ImportExportProject from './pages/ImportExportProject';
 import ProjectionScreen from './pages/ProjectionScreen';
 import __Layout from './Layout.jsx';
 
@@ -57,6 +58,7 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "AdminPanel": AdminPanel,
     "Dashboard": Dashboard,
+    "ImportExportProject": ImportExportProject,
     "Projects": Projects,
     "ProjectionScreen": ProjectionScreen,
 }

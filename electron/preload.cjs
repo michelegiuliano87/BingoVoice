@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   renewLicenseRecord: (payload) => ipcRenderer.invoke("desktop:license:renew-record", payload),
   releaseLicenseDevice: (payload) => ipcRenderer.invoke("desktop:license:release-device", payload),
   importLegacyLicenseData: (payload) => ipcRenderer.invoke("desktop:license:import-legacy", payload),
+  saveProjectPackage: (payload) => ipcRenderer.invoke("desktop:project-package:save", payload),
+  openProjectPackage: () => ipcRenderer.invoke("desktop:project-package:open"),
   encryptStorageValue: (value, namespace) => encryptStorageValue(value, namespace),
   decryptStorageValue: (value, namespace) => decryptStorageValue(value, namespace),
   onUpdateStatus: (callback) => {

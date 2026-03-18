@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Monitor, Loader2, Trash2, Sun, Moon, LayoutGrid, Shield, FolderOpen, Briefcase } from "lucide-react";
+import { Monitor, Loader2, Trash2, Sun, Moon, LayoutGrid, Shield, FolderOpen, Briefcase, PackageOpen } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
 import { useLicense } from "@/components/licensing/LicenseProvider";
@@ -275,7 +275,7 @@ export default function Dashboard() {
 
       <div className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6">
         {showManagementCards ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <Link to="/" className="block">
               <div className={`rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${card}`}>
                 <div className="flex items-center gap-3">
@@ -308,6 +308,19 @@ export default function Dashboard() {
                     <div>
                       <p className={`text-sm font-black uppercase tracking-wider ${title}`}>Progetti</p>
                       <p className={`text-xs ${subtitle}`}>Gestisci progetti, miniature e media dedicati.</p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ) : null}
+            {canOpenProjects ? (
+              <Link to="/ImportExportProject" className="block">
+                <div className={`rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${card}`}>
+                  <div className="flex items-center gap-3">
+                    <PackageOpen className="h-5 w-5 text-violet-500" />
+                    <div>
+                      <p className={`text-sm font-black uppercase tracking-wider ${title}`}>Importa/Esporta</p>
+                      <p className={`text-xs ${subtitle}`}>Crea o installa pacchetti progetto per i clienti.</p>
                     </div>
                   </div>
                 </div>

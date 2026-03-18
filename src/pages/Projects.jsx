@@ -9,7 +9,7 @@ import MediaItemForm from "@/components/dashboard/MediaItemForm";
 import MediaItemList from "@/components/dashboard/MediaItemList";
 import { createPageUrl } from "@/utils";
 import usePersistentTheme from "@/hooks/usePersistentTheme";
-import { ArrowLeft, FolderPlus, ImagePlus, Loader2, Moon, PencilLine, Save, Sparkles, Sun } from "lucide-react";
+import { ArrowLeft, FolderPlus, ImagePlus, Loader2, Moon, PackageOpen, PencilLine, Save, Sparkles, Sun } from "lucide-react";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
 
@@ -213,6 +213,12 @@ export default function Projects() {
             <Button variant="outline" onClick={() => window.open(createPageUrl("ProjectionScreen"), "_blank")}>
               <Sparkles className="mr-2 h-4 w-4" />
               Apri Schermo
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/ImportExportProject">
+                <PackageOpen className="mr-2 h-4 w-4" />
+                Importa/Esporta
+              </Link>
             </Button>
           </div>
         </div>

@@ -25,6 +25,8 @@ declare global {
       renewLicenseRecord: (payload: any) => Promise<LicenseSnapshot>;
       releaseLicenseDevice: (payload: { licenseId: string; deviceId: string }) => Promise<LicenseSnapshot>;
       importLegacyLicenseData: (payload: any) => Promise<LicenseSnapshot>;
+      saveProjectPackage: (payload: { suggestedName: string; packageData: any }) => Promise<{ canceled: boolean; filePath?: string }>;
+      openProjectPackage: () => Promise<{ canceled: boolean; filePath?: string; packageData?: any }>;
       onLicenseChanged: (callback: (payload: LicenseSnapshot) => void) => () => void;
     };
     _bgMusicAudio?: HTMLAudioElement;

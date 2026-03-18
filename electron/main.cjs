@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -259,6 +259,42 @@ ipcMain.handle("desktop:save-file", async (_event, payload) => {
   await fs.writeFile(filePath, Buffer.from(payload.bytes));
 
   return pathToFileURL(filePath).toString();
+});
+
+ipcMain.handle("desktop:project-package:save", async (_event, payload) => {
+  const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow || startupWindow;
+  const result = await dialog.showSaveDialog(targetWindow, {
+    title: "Esporta Progetto BingoVoice",
+    defaultPath: payload?.suggestedName || "progetto-bingovoice.bvpack",
+    filters: [{ name: "BingoVoice Project Package", extensions: ["bvpack"] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { canceled: true };
+  }
+
+  await fs.writeFile(result.filePath, JSON.stringify(payload.packageData, null, 2), "utf8");
+  return { canceled: false, filePath: result.filePath };
+});
+
+ipcMain.handle("desktop:project-package:open", async () => {
+  const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow || startupWindow;
+  const result = await dialog.showOpenDialog(targetWindow, {
+    title: "Importa Progetto BingoVoice",
+    properties: ["openFile"],
+    filters: [{ name: "BingoVoice Project Package", extensions: ["bvpack", "json"] }],
+  });
+
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { canceled: true };
+  }
+
+  const raw = await fs.readFile(result.filePaths[0], "utf8");
+  return {
+    canceled: false,
+    filePath: result.filePaths[0],
+    packageData: JSON.parse(raw),
+  };
 });
 
 ipcMain.handle("desktop:license:get-snapshot", async () => licenseService.getSnapshot());
