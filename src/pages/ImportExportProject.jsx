@@ -71,18 +71,17 @@ export default function ImportExportProject() {
     setFeedback("");
 
     try {
-      const { bytes } = await buildProjectPackageZip({
-        project: selectedProject,
-        mediaItems: projectMedia,
-        playerCards: projectCards,
-        appSettings: appSettings[0] || null,
-        videoButtons,
-      });
-
       const suggestedName = `${selectedProject.name.replace(/[\\/:*?"<>|]+/g, "-") || "progetto"}.bvpack`;
       let result = null;
 
       if (window?.desktopAPI?.saveProjectPackage) {
+        const { bytes } = await buildProjectPackageZip({
+          project: selectedProject,
+          mediaItems: projectMedia,
+          playerCards: projectCards,
+          appSettings: appSettings[0] || null,
+          videoButtons,
+        });
         result = await window.desktopAPI.saveProjectPackage({
           suggestedName,
           bytes,
@@ -96,6 +95,13 @@ export default function ImportExportProject() {
               accept: { "application/json": [".bvpack"] },
             },
           ],
+        });
+        const { bytes } = await buildProjectPackageZip({
+          project: selectedProject,
+          mediaItems: projectMedia,
+          playerCards: projectCards,
+          appSettings: appSettings[0] || null,
+          videoButtons,
         });
         const writable = await handle.createWritable();
         await writable.write(bytes);
