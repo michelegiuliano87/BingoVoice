@@ -82,6 +82,10 @@ async function copyIfMissing(sourcePath, targetPath) {
   await fs.cp(sourcePath, targetPath, { recursive: true, force: false });
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function ensureSeedData() {
   const userDataPath = app.getPath("userData");
   const markerPath = path.join(userDataPath, "seed-installed.json");
@@ -364,6 +368,20 @@ async function ensureLocalServer() {
 async function restartLocalServer() {
   if (localServerRestarting) return localServer;
   localServerRestarting = true;
+  localServerError = null;
+  localServerErrorAt = null;
+  const restartedAt = new Date().toISOString();
+  let previousPort = null;
+  let previousIp = null;
+  if (localServer?.getStatus) {
+    try {
+      const status = localServer.getStatus();
+      previousPort = status?.port ?? null;
+      previousIp = status?.ip ?? null;
+    } catch {
+      // ignore
+    }
+  }
   try {
     if (localServer) {
       await localServer.close();
@@ -373,9 +391,21 @@ async function restartLocalServer() {
   } finally {
     localServer = null;
   }
+  await delay(250);
   const server = await ensureLocalServer();
   localServerRestarting = false;
-  return server;
+  if (!server) return server;
+  const status = server.getStatus?.() || {};
+  return {
+    ...server,
+    __restartMeta: {
+      previousPort,
+      previousIp,
+      restartedAt,
+      currentPort: status?.port ?? null,
+      currentIp: status?.ip ?? null,
+    },
+  };
 }
 
 async function startAppFlow() {
@@ -532,7 +562,17 @@ ipcMain.handle("desktop:local-server:ensure", async () => {
 ipcMain.handle("desktop:local-server:restart", async () => {
   const server = await restartLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
-  return { ...server.getStatus(), error: null, restartedAt: new Date().toISOString() };
+  const status = server.getStatus ? server.getStatus() : {};
+  const meta = server.__restartMeta || {};
+  return {
+    ...status,
+    error: null,
+    restartedAt: meta.restartedAt || new Date().toISOString(),
+    previousPort: meta.previousPort ?? null,
+    previousIp: meta.previousIp ?? null,
+    currentPort: meta.currentPort ?? status?.port ?? null,
+    currentIp: meta.currentIp ?? status?.ip ?? null,
+  };
 });
 
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {

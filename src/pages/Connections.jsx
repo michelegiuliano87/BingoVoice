@@ -17,6 +17,7 @@ export default function Connections() {
   const [qrVisible, setQrVisible] = useState(false);
   const [selectedIp, setSelectedIp] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [restartInfo, setRestartInfo] = useState(null);
   const navigate = useNavigate();
   const [connections, setConnections] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -116,6 +117,7 @@ export default function Connections() {
     setRestarting(true);
     setStatusMessage("Riavvio server in corso...");
     setServerInfo(null);
+    setRestartInfo(null);
     try {
       const status = (await window.desktopAPI?.restartLocalServer?.()) ||
         (await window.desktopAPI?.ensureLocalServer?.());
@@ -123,10 +125,17 @@ export default function Connections() {
       if (status?.error) {
         setStatusMessage(`Server non pronto: ${status.error}`);
       } else {
-        const restartedAt = status?.restartedAt
-          ? ` Riavviato alle ${new Date(status.restartedAt).toLocaleTimeString()}.`
-          : "";
-        setStatusMessage(`Server pronto.${restartedAt}`);
+        const restartedAt = status?.restartedAt ? new Date(status.restartedAt).toLocaleTimeString() : null;
+        const info = {
+          restartedAt,
+          previousIp: status?.previousIp || null,
+          previousPort: status?.previousPort || null,
+          currentIp: status?.currentIp || status?.ip || null,
+          currentPort: status?.currentPort || status?.port || null,
+        };
+        setRestartInfo(info);
+        const restartedText = restartedAt ? ` Riavviato alle ${restartedAt}.` : "";
+        setStatusMessage(`Server pronto.${restartedText}`);
       }
     } finally {
       setRestarting(false);
@@ -199,6 +208,16 @@ export default function Connections() {
               {statusMessage ? (
                 <div className={`text-xs ${serverInfo?.error ? "text-rose-400" : "text-emerald-400"}`}>
                   {statusMessage}
+                </div>
+              ) : null}
+              {restartInfo ? (
+                <div className={`text-[11px] ${sub}`}>
+                  {restartInfo.previousIp && restartInfo.previousPort
+                    ? `Prima: ${restartInfo.previousIp}:${restartInfo.previousPort} • `
+                    : ""}
+                  {restartInfo.currentIp && restartInfo.currentPort
+                    ? `Ora: ${restartInfo.currentIp}:${restartInfo.currentPort}`
+                    : "Ora: n/d"}
                 </div>
               ) : null}
             </div>
