@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   releaseLicenseDevice: (payload) => ipcRenderer.invoke("desktop:license:release-device", payload),
   importLegacyLicenseData: (payload) => ipcRenderer.invoke("desktop:license:import-legacy", payload),
   getLocalServerStatus: () => ipcRenderer.invoke("desktop:local-server:status"),
+  ensureLocalServer: () => ipcRenderer.invoke("desktop:local-server:ensure"),
   getLocalServerConnections: () => ipcRenderer.invoke("desktop:local-server:connections"),
   pushCardsToMobile: (payload) => ipcRenderer.invoke("desktop:local-server:push-cards", payload),
   saveProjectPackage: (payload) => ipcRenderer.invoke("desktop:project-package:save", payload),

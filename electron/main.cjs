@@ -18,6 +18,7 @@ let startupWatchdog = null;
 let startupStatus = "idle";
 let startupForceOpenTimer = null;
 let localServer = null;
+let localServerError = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -321,6 +322,18 @@ function setupAutoUpdater() {
   });
 }
 
+async function ensureLocalServer() {
+  if (localServer) return localServer;
+  try {
+    localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
+    localServerError = null;
+    return localServer;
+  } catch (error) {
+    localServerError = error?.message || "local-server-error";
+    return null;
+  }
+}
+
 async function startAppFlow() {
   const cachedLicense = await readCachedLicenseState();
   let hasActiveLicense = Boolean(cachedLicense?.hasActiveLicense);
@@ -461,9 +474,17 @@ ipcMain.handle("desktop:license:update-record", async (_event, payload) => licen
 ipcMain.handle("desktop:license:renew-record", async (_event, payload) => licenseService.renewLicenseRecord(payload));
 ipcMain.handle("desktop:license:release-device", async (_event, payload) => licenseService.releaseDeviceFromLicense(payload));
 ipcMain.handle("desktop:license:import-legacy", async (_event, payload) => licenseService.importLegacyData(payload));
-ipcMain.handle("desktop:local-server:status", async () => localServer?.getStatus() || null);
+ipcMain.handle("desktop:local-server:status", async () => {
+  if (localServer) return { ...localServer.getStatus(), error: null };
+  return { error: localServerError || "not-ready" };
+});
 ipcMain.handle("desktop:local-server:connections", async () => localServer?.getConnections() || []);
 ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
+ipcMain.handle("desktop:local-server:ensure", async () => {
+  const server = await ensureLocalServer();
+  if (!server) return { error: localServerError || "not-ready" };
+  return { ...server.getStatus(), error: null };
+});
 
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {
   licensedUpdatesEnabled = Boolean(payload?.hasActiveLicense);
@@ -496,7 +517,7 @@ app.whenReady().then(async () => {
     licensedUpdatesEnabled = Boolean(snapshot?.activeLicense);
     broadcastLicenseSnapshot(snapshot);
   }, writeCachedLicenseState);
-  localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
+  await ensureLocalServer();
   await ensureSeedData();
   setupAutoUpdater();
   await startAppFlow();

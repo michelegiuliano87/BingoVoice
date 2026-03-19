@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
 import usePersistentTheme from "@/hooks/usePersistentTheme";
@@ -14,6 +15,7 @@ export default function Connections() {
   const [serverInfo, setServerInfo] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrVisible, setQrVisible] = useState(false);
+  const navigate = useNavigate();
   const [connections, setConnections] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [sending, setSending] = useState(false);
@@ -26,7 +28,10 @@ export default function Connections() {
   useEffect(() => {
     let active = true;
     const loadStatus = async () => {
-      const status = await window.desktopAPI?.getLocalServerStatus?.();
+      let status = await window.desktopAPI?.getLocalServerStatus?.();
+      if (status?.error) {
+        status = await window.desktopAPI?.ensureLocalServer?.();
+      }
       if (!active) return;
       setServerInfo(status);
     };
@@ -95,6 +100,11 @@ export default function Connections() {
     setQrVisible(false);
   };
 
+  const handleEnsureServer = async () => {
+    const status = await window.desktopAPI?.ensureLocalServer?.();
+    setServerInfo(status);
+  };
+
   const card = isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
   const title = isDark ? "text-white" : "text-gray-900";
   const sub = isDark ? "text-gray-400" : "text-gray-500";
@@ -121,13 +131,25 @@ export default function Connections() {
                 Scansiona il QR code con il telefono (stessa rete Wi-Fi) per collegarti al pannello mobile.
               </p>
             </div>
-            <Button
-              onClick={handleSendQrToScreen}
-              disabled={!serverInfo?.url}
-              className={qrVisible ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
-            >
-              {qrVisible ? "Nascondi QR" : "Invia QR Code a Schermo"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={() => navigate("/")}>
+                Torna alla Dashboard
+              </Button>
+              <Button
+                onClick={handleEnsureServer}
+                disabled={Boolean(serverInfo?.url)}
+                variant="outline"
+              >
+                Riavvia Server
+              </Button>
+              <Button
+                onClick={handleSendQrToScreen}
+                disabled={!serverInfo?.url}
+                className={qrVisible ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+              >
+                {qrVisible ? "Nascondi QR" : "Invia QR Code a Schermo"}
+              </Button>
+            </div>
           </div>
           <div className="mt-4 grid gap-6 md:grid-cols-[260px_1fr]">
             <div className="flex flex-col items-center gap-3">
