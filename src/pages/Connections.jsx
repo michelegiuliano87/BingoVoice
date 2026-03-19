@@ -24,6 +24,26 @@ export default function Connections() {
   const [sending, setSending] = useState(false);
   const [restarting, setRestarting] = useState(false);
 
+  const enrichStatus = (status) => {
+    if (!status) return null;
+    const ip = status.ip || status.currentIp || null;
+    const port = status.port || status.currentPort || null;
+    const url = status.url || (ip && port ? `http://${ip}:${port}` : null);
+    return { ...status, ip, port, url };
+  };
+
+  const normalizeStatus = (status) => {
+    const enriched = enrichStatus(status);
+    if (!enriched || enriched.error || !enriched.url || !enriched.ip || !enriched.port) {
+      return {
+        ok: false,
+        status: null,
+        message: `Server non pronto: ${enriched?.error || "not-ready"}`,
+      };
+    }
+    return { ok: true, status: enriched, message: "Server pronto." };
+  };
+
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: () => base44.entities.Project.list("-created_date"),
@@ -37,12 +57,9 @@ export default function Connections() {
         status = await window.desktopAPI?.getLocalServerStatus?.();
       }
       if (!active) return;
-      setServerInfo(status);
-      if (status?.error) {
-        setStatusMessage(`Server non pronto: ${status.error}`);
-      } else {
-        setStatusMessage("Server pronto.");
-      }
+      const normalized = normalizeStatus(status);
+      setServerInfo(normalized.status);
+      setStatusMessage(normalized.message);
     };
     loadStatus();
     const interval = setInterval(loadStatus, 4000);
@@ -127,17 +144,19 @@ export default function Connections() {
           status = { ...status, ...freshStatus };
         }
       }
-      setServerInfo(status);
-      if (status?.error) {
-        setStatusMessage(`Server non pronto: ${status.error}`);
+      const normalized = normalizeStatus(status);
+      setServerInfo(normalized.status);
+      if (!normalized.ok) {
+        setRestartInfo(null);
+        setStatusMessage(normalized.message);
       } else {
         const restartedAt = status?.restartedAt ? new Date(status.restartedAt).toLocaleTimeString() : null;
         const info = {
           restartedAt,
           previousIp: status?.previousIp || null,
           previousPort: status?.previousPort || null,
-          currentIp: status?.currentIp || status?.ip || null,
-          currentPort: status?.currentPort || status?.port || null,
+          currentIp: status?.currentIp || normalized.status?.ip || null,
+          currentPort: status?.currentPort || normalized.status?.port || null,
         };
         setRestartInfo(info);
         const restartedText = restartedAt ? ` Riavviato alle ${restartedAt}.` : "";
