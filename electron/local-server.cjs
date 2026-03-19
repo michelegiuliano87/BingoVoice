@@ -354,6 +354,29 @@ function buildMobileHtml() {
 </html>`;
 }
 
+function pingLocalServer(ip, port) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: ip || "127.0.0.1",
+        port,
+        path: "/api/status",
+        method: "GET",
+        timeout: 3000,
+      },
+      (res) => {
+        resolve(res.statusCode && res.statusCode < 400);
+      },
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
 async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
   const clients = new Map();
   const downloads = new Map();
@@ -503,6 +526,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
 
   return {
     getStatus: () => ({ ip, ips, port, url: `http://${ip}:${port}` }),
+    ping: () => pingLocalServer(ip, port),
     getConnections: () => Array.from(clients.values()).map((c) => c.meta),
     pushCards: async ({ projectId, clientId }) => {
       const payload = await buildCardCheckPayload({ app, decryptFileJson, getEntityStorePath, projectId });

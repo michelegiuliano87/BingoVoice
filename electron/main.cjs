@@ -516,6 +516,16 @@ async function restartLocalServer() {
   const server = await ensureLocalServer();
   localServerRestarting = false;
   if (!server) return server;
+  try {
+    const ok = await server.ping?.();
+    if (!ok) {
+      localServerError = "ping-failed";
+      localServerErrorAt = new Date().toISOString();
+    }
+  } catch {
+    localServerError = "ping-failed";
+    localServerErrorAt = new Date().toISOString();
+  }
   const status = server.getStatus?.() || {};
   return {
     ...server,
@@ -666,15 +676,32 @@ ipcMain.handle("desktop:local-server:status", async () => {
 });
 ipcMain.handle("desktop:local-server:connections", async () => localServer?.getConnections() || []);
 ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
+ipcMain.handle("desktop:local-server:ping", async () => {
+  if (!localServer) return { ok: false, error: "not-ready" };
+  const ok = await localServer.ping?.();
+  return { ok: Boolean(ok) };
+});
 ipcMain.handle("desktop:local-server:ensure", async () => {
   const server = await ensureLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  const ok = await server.ping?.();
+  if (!ok) {
+    localServerError = "ping-failed";
+    localServerErrorAt = new Date().toISOString();
+    return { ...server.getStatus(), error: "ping-failed", errorAt: localServerErrorAt };
+  }
   return { ...server.getStatus(), error: null };
 });
 ipcMain.handle("desktop:local-server:restart", async () => {
   const server = await restartLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
   const status = server.getStatus ? server.getStatus() : {};
+  const ok = await server.ping?.();
+  if (!ok) {
+    localServerError = "ping-failed";
+    localServerErrorAt = new Date().toISOString();
+    return { ...status, error: "ping-failed", errorAt: localServerErrorAt };
+  }
   const meta = server.__restartMeta || {};
   return {
     ...status,

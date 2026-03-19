@@ -176,12 +176,14 @@ export default function Connections() {
   };
 
   const handleTestServer = async () => {
-    if (!serverInfo?.url) return;
     setTestingServer(true);
     try {
-      const response = await fetch(`${serverInfo.url}/api/status`, { cache: "no-store" });
-      if (!response.ok) throw new Error("status-not-ok");
-      toast.success("Server locale raggiungibile.");
+      const result = await window.desktopAPI?.pingLocalServer?.();
+      if (result?.ok) {
+        toast.success("Server locale raggiungibile.");
+      } else {
+        toast.error("Server locale non raggiungibile.");
+      }
     } catch {
       toast.error("Server locale non raggiungibile.");
     } finally {
