@@ -25,6 +25,7 @@ let localServerError = null;
 let localServerErrorAt = null;
 let localServerRestarting = false;
 let startupUpdateOffer = null;
+let startupCheckInProgress = false;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 const STARTUP_MIN_VISIBLE_MS = 900;
@@ -398,21 +399,18 @@ function setupAutoUpdater() {
   autoUpdater.on("error", async (error) => {
     sendUpdateStatus({
       type: "error",
-      message: error?.message || "Controllo aggiornamenti non riuscito. Sto aprendo il programma.",
+      message: error?.message || "Controllo aggiornamenti non riuscito. Usa Riprova o Apri senza aggiornare.",
     });
-
-    if (startupMode) {
-      setTimeout(() => {
-        closeStartupAndOpenMain();
-      }, 1200);
-    }
   });
 }
 
 async function checkForStartupUpdates() {
+  if (startupCheckInProgress) return;
+  startupCheckInProgress = true;
   const currentVersion = normalizeVersion(app.getVersion());
   let autoVersion = null;
   let manualVersion = null;
+  let errorDetails = null;
   const detailsBase = `Locale: ${currentVersion || "n/d"}`;
 
   try {
@@ -425,16 +423,20 @@ async function checkForStartupUpdates() {
         version: autoVersion,
         details: `${detailsBase} • AutoUpdater: ${autoVersion}`,
       });
+      startupCheckInProgress = false;
       return;
     }
-  } catch {
-    // fallback to manual check
+  } catch (err) {
+    errorDetails = `AutoUpdater: ${err?.message || "errore"}`;
   }
 
   try {
     manualVersion = await fetchLatestGithubVersion();
-  } catch {
+  } catch (err) {
     manualVersion = null;
+    errorDetails = errorDetails
+      ? `${errorDetails} • GitHub: ${err?.message || "errore"}`
+      : `GitHub: ${err?.message || "errore"}`;
   }
 
   if (manualVersion && compareVersions(manualVersion, currentVersion) > 0) {
@@ -444,20 +446,17 @@ async function checkForStartupUpdates() {
       version: manualVersion,
       details: `${detailsBase} • GitHub: ${manualVersion}`,
     });
+    startupCheckInProgress = false;
     return;
   }
 
   if (!autoVersion && !manualVersion) {
     sendUpdateStatus({
       type: "error",
-      message: "Non sono riuscito a verificare gli aggiornamenti. Sto aprendo il programma.",
-      details: `${detailsBase} • AutoUpdater: errore • GitHub: errore`,
+      message: "Non sono riuscito a verificare gli aggiornamenti. Usa Riprova o Apri senza aggiornare.",
+      details: `${detailsBase} • ${errorDetails || "AutoUpdater: errore • GitHub: errore"}`,
     });
-    if (startupMode) {
-      setTimeout(() => {
-        closeStartupAndOpenMain();
-      }, 1200);
-    }
+    startupCheckInProgress = false;
     return;
   }
 
@@ -470,6 +469,7 @@ async function checkForStartupUpdates() {
       closeStartupAndOpenMain();
     }, 900);
   }
+  startupCheckInProgress = false;
 }
 
 async function ensureLocalServer() {
@@ -484,6 +484,27 @@ async function ensureLocalServer() {
     localServerErrorAt = new Date().toISOString();
     return null;
   }
+}
+
+async function ensureLocalServerReady({ attempts = 3, delayMs = 400 } = {}) {
+  let lastError = null;
+  for (let i = 0; i < attempts; i += 1) {
+    const server = await ensureLocalServer();
+    if (!server) {
+      lastError = localServerError || "not-ready";
+    } else {
+      const ok = await server.ping?.();
+      if (ok) return server;
+      lastError = "ping-failed";
+      localServerError = lastError;
+      localServerErrorAt = new Date().toISOString();
+    }
+    await restartLocalServer();
+    await delay(delayMs);
+  }
+  localServerError = lastError || "not-ready";
+  localServerErrorAt = new Date().toISOString();
+  return null;
 }
 
 async function restartLocalServer() {
@@ -692,6 +713,11 @@ ipcMain.handle("desktop:local-server:ensure", async () => {
   }
   return { ...server.getStatus(), error: null };
 });
+ipcMain.handle("desktop:local-server:force", async () => {
+  const server = await ensureLocalServerReady({ attempts: 3, delayMs: 500 });
+  if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  return { ...server.getStatus(), error: null };
+});
 ipcMain.handle("desktop:local-server:restart", async () => {
   const server = await restartLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
@@ -724,7 +750,16 @@ ipcMain.on("desktop:set-license-state", async (_event, payload) => {
 });
 
 ipcMain.on("desktop:updater-action", async (_event, action) => {
-  if (!startupMode || updateDecisionTaken) return;
+  if (!startupMode) return;
+
+  if (action === "retry") {
+    updateDecisionTaken = false;
+    sendUpdateStatus({ type: "checking", details: "Nuovo controllo in corso..." });
+    await checkForStartupUpdates();
+    return;
+  }
+
+  if (updateDecisionTaken) return;
 
   if (action === "download") {
     updateDecisionTaken = true;

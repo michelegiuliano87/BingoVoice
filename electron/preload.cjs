@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   getLocalServerStatus: () => ipcRenderer.invoke("desktop:local-server:status"),
   ensureLocalServer: () => ipcRenderer.invoke("desktop:local-server:ensure"),
   restartLocalServer: () => ipcRenderer.invoke("desktop:local-server:restart"),
+  forceLocalServer: () => ipcRenderer.invoke("desktop:local-server:force"),
   getLocalServerConnections: () => ipcRenderer.invoke("desktop:local-server:connections"),
   pushCardsToMobile: (payload) => ipcRenderer.invoke("desktop:local-server:push-cards", payload),
   pingLocalServer: () => ipcRenderer.invoke("desktop:local-server:ping"),

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ export default function Connections() {
   const [sending, setSending] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [testingServer, setTestingServer] = useState(false);
+  const forceAttemptedRef = useRef(false);
 
   const enrichStatus = (status) => {
     if (!status) return null;
@@ -54,20 +55,19 @@ export default function Connections() {
   useEffect(() => {
     let active = true;
     const loadStatus = async () => {
-      let status = await window.desktopAPI?.ensureLocalServer?.();
+      let status = await window.desktopAPI?.getLocalServerStatus?.();
       if (!status || status?.error) {
-        status = await window.desktopAPI?.getLocalServerStatus?.();
+        if (!forceAttemptedRef.current) {
+          forceAttemptedRef.current = true;
+          status = await window.desktopAPI?.forceLocalServer?.();
+        } else {
+          status = await window.desktopAPI?.ensureLocalServer?.();
+        }
       }
       if (!active) return;
       const normalized = normalizeStatus(status);
       setServerInfo(normalized.status);
       setStatusMessage(normalized.message);
-      if (!normalized.ok && status?.error === "not-ready") {
-        const restarted = await window.desktopAPI?.restartLocalServer?.();
-        const normalizedRestart = normalizeStatus(restarted);
-        setServerInfo(normalizedRestart.status);
-        setStatusMessage(normalizedRestart.message);
-      }
     };
     loadStatus();
     const interval = setInterval(loadStatus, 4000);
@@ -144,7 +144,8 @@ export default function Connections() {
     setServerInfo(null);
     setRestartInfo(null);
     try {
-      let status = (await window.desktopAPI?.restartLocalServer?.()) ||
+      let status = (await window.desktopAPI?.forceLocalServer?.()) ||
+        (await window.desktopAPI?.restartLocalServer?.()) ||
         (await window.desktopAPI?.ensureLocalServer?.());
       if (!status?.ip || !status?.port) {
         const freshStatus = await window.desktopAPI?.getLocalServerStatus?.();
@@ -182,7 +183,7 @@ export default function Connections() {
       if (result?.ok) {
         toast.success("Server locale raggiungibile.");
       } else {
-        toast.error("Server locale non raggiungibile.");
+        toast.error(`Server locale non raggiungibile${result?.error ? ` (${result.error})` : ""}.`);
       }
     } catch {
       toast.error("Server locale non raggiungibile.");

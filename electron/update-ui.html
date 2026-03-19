@@ -303,6 +303,7 @@
       const secondaryButton = document.getElementById("secondaryButton");
       const statusChip = document.getElementById("statusChip");
       const log = document.getElementById("log");
+      let actionMode = "download";
 
       const setLog = (value) => {
         if (!log) return;
@@ -330,6 +331,12 @@
       };
 
       primaryButton.addEventListener("click", () => {
+        if (actionMode === "retry") {
+          setStatusChip("Nuovo controllo");
+          window.desktopAPI?.updaterAction("retry");
+          hideActions();
+          return;
+        }
         setStatusChip("Download in corso");
         window.desktopAPI?.updaterAction("download");
         hideActions();
@@ -353,6 +360,7 @@
             message.textContent = `E disponibile la versione ${payload.version}. Vuoi installarla prima di aprire BingoVoice?`;
             setStatusChip("Nuova versione trovata");
             setLog(payload?.details || `Nuova versione trovata: ${payload.version}`);
+            actionMode = "download";
             showActions("Aggiorna ora", "Apri senza aggiornare");
             break;
           case "downloading":
@@ -382,7 +390,8 @@
             message.textContent = payload.message || "Non sono riuscito a controllare gli aggiornamenti. Sto aprendo il programma.";
             setStatusChip("Controllo non riuscito");
             setLog(payload?.details || payload.message || "Errore nel controllo aggiornamenti.");
-            hideActions();
+            actionMode = "retry";
+            showActions("Riprova", "Apri senza aggiornare");
             break;
           default:
             break;
