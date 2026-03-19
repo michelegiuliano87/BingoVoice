@@ -1,7 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const LOGO_URL = "https://i.imgur.com/RxOxJhT_d.webp?maxwidth=760&fidelity=grand";
+import logoUrl from "@/assets/logo.png";
 const TOTAL_SLOTS = 90;
 
 export default function BingoBoard({ extractions, latestId }) {
@@ -14,8 +13,8 @@ export default function BingoBoard({ extractions, latestId }) {
       {/* Logo + stats row */}
       <div className="flex items-center justify-between px-2 py-1 shrink-0">
         <img
-          src={LOGO_URL}
-          alt="Bingo Voice"
+          src={logoUrl}
+          alt="BingoVoice"
           className="h-12 object-contain drop-shadow-xl"
         />
         <div className="flex gap-4 text-sm">

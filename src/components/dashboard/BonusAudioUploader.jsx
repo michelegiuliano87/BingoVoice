@@ -14,6 +14,8 @@ export default function BonusAudioUploader({ settings, onUpdated, isDark }) {
   const [loadingMusic, setLoadingMusic] = useState(false);
   const [wheelAudioFile, setWheelAudioFile] = useState(null);
   const [loadingWheelAudio, setLoadingWheelAudio] = useState(false);
+  const [repeatAudioFile, setRepeatAudioFile] = useState(null);
+  const [loadingRepeatAudio, setLoadingRepeatAudio] = useState(false);
   const [panarielloVideoFile, setPanarielloVideoFile] = useState(null);
   const [loadingPanarielloVideo, setLoadingPanarielloVideo] = useState(false);
   const [waitingVideoFile, setWaitingVideoFile] = useState(null);
@@ -153,6 +155,46 @@ export default function BonusAudioUploader({ settings, onUpdated, isDark }) {
           <Button onClick={() => upload(wheelAudioFile, "wheel_audio_url", setLoadingWheelAudio, "wheel-audio-input", setWheelAudioFile)}
             disabled={loadingWheelAudio || !wheelAudioFile} size="sm" className="bg-yellow-500 hover:bg-yellow-600 gap-1 shrink-0 text-white">
             {loadingWheelAudio ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+            Salva
+          </Button>
+        </div>
+      </div>
+
+      {/* Audio Ripeto */}
+      <div className="space-y-2">
+        <p className={`text-xs font-semibold flex items-center gap-1 ${label}`}>
+          <Volume2 className="w-3 h-3 text-cyan-500" /> Audio Ripeto (pulsante extra)
+        </p>
+        {settings?.repeat_audio_url ? (
+          <div className="flex items-center gap-2">
+            <audio controls src={settings.repeat_audio_url} className="flex-1 h-8" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => remove("repeat_audio_url")}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <p className={`text-xs ${subtext}`}>Nessun audio impostato</p>
+        )}
+        <div className="flex gap-2 items-end">
+          <Input
+            id="repeat-audio-input"
+            type="file"
+            accept="audio/*"
+            onChange={(e) => setRepeatAudioFile(e.target.files[0])}
+            className="flex-1"
+          />
+          <Button
+            onClick={() => upload(repeatAudioFile, "repeat_audio_url", setLoadingRepeatAudio, "repeat-audio-input", setRepeatAudioFile)}
+            disabled={loadingRepeatAudio || !repeatAudioFile}
+            size="sm"
+            className="bg-cyan-600 hover:bg-cyan-700 gap-1 shrink-0 text-white"
+          >
+            {loadingRepeatAudio ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
             Salva
           </Button>
         </div>

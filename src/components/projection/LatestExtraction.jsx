@@ -23,25 +23,18 @@ export default function LatestExtraction({ extraction, bonusAudioUrl, onComplete
       }
       setPhase("reveal");
 
-      // Aspetta la fine dell'audio estrazione prima di chiudere
       const audio = extractionAudioRef.current;
       if (extraction.audio_url && audio) {
         audio.src = extraction.audio_url;
-        audio.onended = () => {
-          onCompleteRef.current?.();
-        };
+        audio.onended = null;
         audio.play().catch(() => {});
-        // Nascondi l'immagine dopo 5 secondi, ma l'audio continua
-        const t = setTimeout(() => setPhase(null), 15000);
-        timers.push(t);
-      } else {
-        // Nessun audio: nascondi dopo 10 secondi
-        const t = setTimeout(() => {
-          setPhase(null);
-          onCompleteRef.current?.();
-        }, 15000);
-        timers.push(t);
       }
+
+      const t = setTimeout(() => {
+        setPhase(null);
+        onCompleteRef.current?.();
+      }, 15000);
+      timers.push(t);
     };
 
     if (extraction.is_bonus && !extraction.skip_intro) {

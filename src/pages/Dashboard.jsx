@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Monitor, Loader2, Trash2, Sun, Moon, LayoutGrid, Shield, FolderOpen, Briefcase, PackageOpen } from "lucide-react";
+import { Monitor, Loader2, Trash2, Sun, Moon, LayoutGrid, Shield, FolderOpen, Briefcase, PackageOpen, Smartphone } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
 import { useLicense } from "@/components/licensing/LicenseProvider";
@@ -18,6 +18,8 @@ import ProjectSelector from "../components/dashboard/ProjectSelector";
 import DashboardCardChecker from "../components/dashboard/DashboardCardChecker";
 
 const STORAGE_KEY = "toretto.selectedProjectId";
+const SPIN_DURATION_MS = 3500;
+const EXTRACTION_COMMIT_DELAY_MS = 150;
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -26,6 +28,7 @@ export default function Dashboard() {
   const [extracting, setExtracting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(() => localStorage.getItem(STORAGE_KEY) || null);
   const [currentBonusItem, setCurrentBonusItem] = useState(null);
+  const [lastExtractionAudioUrl, setLastExtractionAudioUrl] = useState("");
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
@@ -118,6 +121,7 @@ export default function Dashboard() {
 
     setExtracting(true);
     const selected = available[Math.floor(Math.random() * available.length)];
+    setLastExtractionAudioUrl(selected.audio_url || "");
     const orderNumber = extractions.length + 1;
 
     const bonusFlagged = filteredItems.find((item) => item.is_bonus) || null;
@@ -137,16 +141,6 @@ export default function Dashboard() {
       setCurrentBonusItem(bonusFlagged);
     }
 
-    await base44.entities.MediaItem.update(selected.id, { extracted: true });
-    const extraction = await base44.entities.Extraction.create({
-      media_item_id: selected.id,
-      media_name: selected.name,
-      image_url: selected.image_url,
-      audio_url: selected.audio_url || "",
-      order_number: orderNumber,
-      is_bonus: isBonus,
-    });
-
     const panarielloBtn = videoButtons.find((button) => button.label?.toUpperCase().includes("PANARIELLO"));
     const panarielloBandVideoUrl = panarielloBtn?.video_url || appSettings[0]?.panariello_band_video_url || "";
     const wheelImages = filteredItems
@@ -158,14 +152,35 @@ export default function Dashboard() {
       extraction_id: JSON.stringify({
         images: wheelImages,
         target: { image_url: selected.image_url, label: selected.name },
-        next_extraction_id: extraction.id,
+        next_extraction: {
+          media_item_id: selected.id,
+          media_name: selected.name,
+          image_url: selected.image_url,
+          audio_url: selected.audio_url || "",
+          order_number: orderNumber,
+          is_bonus: isBonus,
+        },
         is_panariello_band: isPanarielloBand,
         panariello_band_video_url: panarielloBandVideoUrl,
       }),
     });
 
-    refreshAll();
-    setExtracting(false);
+    setTimeout(async () => {
+      try {
+        await base44.entities.MediaItem.update(selected.id, { extracted: true });
+        await base44.entities.Extraction.create({
+          media_item_id: selected.id,
+          media_name: selected.name,
+          image_url: selected.image_url,
+          audio_url: selected.audio_url || "",
+          order_number: orderNumber,
+          is_bonus: isBonus,
+        });
+        refreshAll();
+      } finally {
+        setExtracting(false);
+      }
+    }, SPIN_DURATION_MS + EXTRACTION_COMMIT_DELAY_MS);
   };
 
   const handlePlayVideo = async (videoUrl) => {
@@ -205,6 +220,23 @@ export default function Dashboard() {
         bonus_video_url: bonusVideoUrl,
         skip_intro: true,
       }),
+    });
+  };
+
+  const handleReplayExtractionAudio = async () => {
+    if (!lastExtractionAudioUrl) return;
+    await base44.entities.ScreenCommand.create({
+      command_type: "replay_extraction_audio",
+      audio_url: lastExtractionAudioUrl,
+    });
+  };
+
+  const handlePlayRepeatAudio = async () => {
+    const repeatUrl = appSettings[0]?.repeat_audio_url || "";
+    if (!repeatUrl) return;
+    await base44.entities.ScreenCommand.create({
+      command_type: "play_repeat_audio",
+      audio_url: repeatUrl,
     });
   };
 
@@ -275,7 +307,7 @@ export default function Dashboard() {
 
       <div className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6">
         {showManagementCards ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
             <Link to="/" className="block">
               <div className={`rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${card}`}>
                 <div className="flex items-center gap-3">
@@ -339,6 +371,19 @@ export default function Dashboard() {
                 </div>
               </Link>
             ) : null}
+            {isAdmin ? (
+              <Link to="/Connections" className="block">
+                <div className={`rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${card}`}>
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="h-5 w-5 text-cyan-500" />
+                    <div>
+                      <p className={`text-sm font-black uppercase tracking-wider ${title}`}>Connessioni</p>
+                      <p className={`text-xs ${subtitle}`}>Collega telefoni via QR e invia cartelle.</p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ) : null}
           </div>
         ) : null}
 
@@ -378,6 +423,24 @@ export default function Dashboard() {
                   "ESTRAI"
                 )}
               </button>
+              <div className="flex w-full max-w-sm gap-2">
+                <Button
+                  onClick={handleReplayExtractionAudio}
+                  disabled={!lastExtractionAudioUrl || extracting}
+                  className="flex-1 rounded-2xl py-3 text-[11px] font-black uppercase tracking-widest"
+                  variant={isDark ? "secondary" : "outline"}
+                >
+                  Ripeti Audio Estrazione
+                </Button>
+                <Button
+                  onClick={handlePlayRepeatAudio}
+                  disabled={extracting || !appSettings[0]?.repeat_audio_url}
+                  className="flex-1 rounded-2xl py-3 text-[11px] font-black uppercase tracking-widest"
+                  variant={isDark ? "secondary" : "outline"}
+                >
+                  Audio: Ripeto
+                </Button>
+              </div>
               <p className={`text-sm font-medium ${subtitle}`}>
                 {availableCount} / {totalCount} disponibili
                 {activeProjectName ? <span className="ml-2 text-indigo-500">- {activeProjectName}</span> : null}

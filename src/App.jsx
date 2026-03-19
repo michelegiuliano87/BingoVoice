@@ -5,6 +5,7 @@ import { queryClientInstance } from "@/lib/query-client";
 import { pagesConfig } from "./pages.config";
 import PageNotFound from "./lib/PageNotFound";
 import CardManager from "./pages/CardManager";
+import Connections from "./pages/Connections";
 import { LicenseProvider } from "@/components/licensing/LicenseProvider";
 import LicenseGate from "@/components/licensing/LicenseGate";
 
@@ -37,6 +38,7 @@ const AppRoutes = () => (
       />
     ))}
     <Route path="/CardManager" element={<CardManager />} />
+    <Route path="/Connections" element={<Connections />} />
     <Route path="*" element={<PageNotFound />} />
   </Routes>
 );

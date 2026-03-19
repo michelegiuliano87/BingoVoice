@@ -6,6 +6,7 @@ const crypto = require("node:crypto");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
 const { createService } = require("./license-service.cjs");
+const { createLocalServer } = require("./local-server.cjs");
 
 let mainWindow = null;
 let startupWindow = null;
@@ -16,6 +17,7 @@ let licenseService = null;
 let startupWatchdog = null;
 let startupStatus = "idle";
 let startupForceOpenTimer = null;
+let localServer = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -142,6 +144,7 @@ async function openMainWindow() {
     minHeight: 760,
     backgroundColor: "#0f172a",
     autoHideMenuBar: true,
+    icon: path.join(__dirname, "..", "assets", "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -187,6 +190,7 @@ async function createChildWindow(url) {
     height: 1080,
     backgroundColor: "#020617",
     autoHideMenuBar: true,
+    icon: path.join(__dirname, "..", "assets", "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -209,6 +213,7 @@ async function createStartupWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#06111f",
     show: false,
+    icon: path.join(__dirname, "..", "assets", "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -456,6 +461,9 @@ ipcMain.handle("desktop:license:update-record", async (_event, payload) => licen
 ipcMain.handle("desktop:license:renew-record", async (_event, payload) => licenseService.renewLicenseRecord(payload));
 ipcMain.handle("desktop:license:release-device", async (_event, payload) => licenseService.releaseDeviceFromLicense(payload));
 ipcMain.handle("desktop:license:import-legacy", async (_event, payload) => licenseService.importLegacyData(payload));
+ipcMain.handle("desktop:local-server:status", async () => localServer?.getStatus() || null);
+ipcMain.handle("desktop:local-server:connections", async () => localServer?.getConnections() || []);
+ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
 
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {
   licensedUpdatesEnabled = Boolean(payload?.hasActiveLicense);
@@ -488,6 +496,7 @@ app.whenReady().then(async () => {
     licensedUpdatesEnabled = Boolean(snapshot?.activeLicense);
     broadcastLicenseSnapshot(snapshot);
   }, writeCachedLicenseState);
+  localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
   await ensureSeedData();
   setupAutoUpdater();
   await startAppFlow();
@@ -502,5 +511,11 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("before-quit", async () => {
+  if (localServer) {
+    await localServer.close();
   }
 });

@@ -119,18 +119,23 @@
       }
 
       .badge {
-        min-width: 94px;
-        height: 94px;
+        width: 96px;
+        height: 96px;
         display: grid;
         place-items: center;
-        border-radius: 28px;
+        border-radius: 24px;
         background:
-          radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.22), transparent 32%),
-          linear-gradient(135deg, var(--violet), var(--violet-2));
-        box-shadow: 0 16px 40px rgba(99, 102, 241, 0.34);
-        font-size: 34px;
-        font-weight: 900;
-        letter-spacing: 0.16em;
+          radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.12), transparent 32%),
+          linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.8));
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 10px;
+      }
+
+      .badge img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .status-chip {
@@ -246,7 +251,9 @@
           <h1 id="title">Controllo aggiornamenti</h1>
           <p id="message">Sto verificando se esiste una versione piu recente prima di aprire il programma.</p>
         </div>
-        <div class="badge">BV</div>
+        <div class="badge">
+          <img src="../assets/logo.png" alt="BingoVoice" />
+        </div>
       </div>
 
       <div class="status-chip">

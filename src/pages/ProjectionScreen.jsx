@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import QRCode from "qrcode";
 
 import BingoBoard from "../components/projection/BingoBoard";
 import VideoOverlay from "../components/projection/VideoOverlay";
@@ -14,6 +15,9 @@ if (!window._bgMusicAudio) {
   window._bgMusicAudio.loop = true;
   window._bgMusicAudio.volume = 0.5;
 }
+if (!window._replayExtractionAudio) {
+  window._replayExtractionAudio = new Audio();
+}
 
 
 export default function ProjectionScreen() {
@@ -24,6 +28,7 @@ export default function ProjectionScreen() {
   const [pendingBonusExtraction, setPendingBonusExtraction] = useState(null);
   const [wheelData, setWheelData] = useState(null); // { images, target, next_extraction_id }
   const [cardCheckData, setCardCheckData] = useState(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
   const processedCommandsRef = useRef(new Set());
   const musicManualRef = useRef(true); // true = musica fermata manualmente (non autoplay)
 
@@ -43,6 +48,13 @@ export default function ProjectionScreen() {
   const bgMusicUrl = appSettings[0]?.background_music_url || null;
   const wheelAudioUrl = appSettings[0]?.wheel_audio_url || null;
   const waitingVideoUrl = appSettings[0]?.waiting_video_url || null;
+
+  useEffect(() => {
+    if (extractions.length > 0) {
+      const last = extractions[extractions.length - 1];
+      if (last?.id) setLatestId(last.id);
+    }
+  }, [extractions]);
 
   // Load music when URL is available - NON resettare se già caricata (evita interruzioni)
   useEffect(() => {
@@ -80,6 +92,34 @@ export default function ProjectionScreen() {
           window._bgMusicAudio.currentTime = 0;
         } else if (cmd.command_type === "music_volume" && cmd.value != null) {
           window._bgMusicAudio.volume = Math.min(1, Math.max(0, cmd.value));
+        } else if (cmd.command_type === "replay_extraction_audio" && cmd.audio_url) {
+          const bg = window._bgMusicAudio;
+          const resumeBg = !bg.paused && !musicManualRef.current;
+          bg.pause();
+          const replay = window._replayExtractionAudio;
+          replay.pause();
+          replay.currentTime = 0;
+          replay.src = cmd.audio_url;
+          replay.onended = () => {
+            if (resumeBg) {
+              bg.play().catch(() => {});
+            }
+          };
+          replay.play().catch(() => {});
+        } else if (cmd.command_type === "play_repeat_audio" && cmd.audio_url) {
+          const bg = window._bgMusicAudio;
+          const resumeBg = !bg.paused && !musicManualRef.current;
+          bg.pause();
+          const replay = window._replayExtractionAudio;
+          replay.pause();
+          replay.currentTime = 0;
+          replay.src = cmd.audio_url;
+          replay.onended = () => {
+            if (resumeBg) {
+              bg.play().catch(() => {});
+            }
+          };
+          replay.play().catch(() => {});
         } else if (cmd.command_type === "play_video" && cmd.video_url) {
           setVideoUrl(cmd.video_url);
         } else if (cmd.command_type === "show_extraction" && cmd.extraction_id) {
@@ -90,6 +130,7 @@ export default function ProjectionScreen() {
               setCardCheckData(parsed);
             } else {
               // Bonus o altro payload JSON con dati estrazione diretti
+              setQrDataUrl("");
               setShowingExtraction(parsed);
               if (parsed.id) setLatestId(parsed.id);
             }
@@ -99,6 +140,7 @@ export default function ProjectionScreen() {
             const allExtractions = await base44.entities.Extraction.list("order_number");
             const ext = allExtractions.find((e) => e.id === cmd.extraction_id);
             if (ext) {
+              setQrDataUrl("");
               setShowingExtraction(ext);
               setLatestId(ext.id);
             }
@@ -109,6 +151,7 @@ export default function ProjectionScreen() {
             window._bgMusicAudio.pause();
             setShowingExtraction(null);
             setVideoUrl(null);
+            setQrDataUrl("");
             setWheelData(data);
           } catch (e) {}
         } else if (cmd.command_type === "show_bonus" && cmd.extraction_id) {
@@ -121,6 +164,16 @@ export default function ProjectionScreen() {
               setShowingExtraction(bonusData);
             }
           } catch {}
+        } else if (cmd.command_type === "show_qr" && cmd.extraction_id) {
+          try {
+            const payload = JSON.parse(cmd.extraction_id);
+            if (payload?.url) {
+              const dataUrl = await QRCode.toDataURL(payload.url, { margin: 1, width: 380 });
+              setQrDataUrl(dataUrl);
+            }
+          } catch {}
+        } else if (cmd.command_type === "hide_qr") {
+          setQrDataUrl("");
         } else if (cmd.command_type === "clear_video") {
           setVideoUrl(null);
         }
@@ -176,7 +229,16 @@ export default function ProjectionScreen() {
           onComplete={async () => {
             const wd = wheelData;
             setWheelData(null);
-            if (wd.next_extraction_id) {
+            if (wd.next_extraction) {
+              const ext = wd.next_extraction;
+              if (wd.is_panariello_band && wd.panariello_band_video_url) {
+                setVideoUrl(wd.panariello_band_video_url);
+                setPendingBonusExtraction(ext);
+              } else {
+                setShowingExtraction(ext);
+                if (ext?.id) setLatestId(ext.id);
+              }
+            } else if (wd.next_extraction_id) {
               const allExtractions = await base44.entities.Extraction.list("order_number");
               const ext = allExtractions.find((e) => e.id === wd.next_extraction_id);
               if (ext) {
@@ -202,6 +264,16 @@ export default function ProjectionScreen() {
         bonusAudioUrl={bonusAudioUrl}
         onComplete={() => setShowingExtraction(null)}
       />
+      {qrDataUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+          <div className="flex flex-col items-center gap-6">
+            <img src={qrDataUrl} alt="QR BingoVoice" className="w-96 h-96 rounded-3xl border-4 border-cyan-400 shadow-2xl" />
+            <p className="text-white text-2xl font-black uppercase tracking-widest">
+              Scansiona per connetterti
+            </p>
+          </div>
+        </div>
+      ) : null}
       <VideoOverlay videoUrl={videoUrl} onEnded={() => {
         setVideoUrl(null);
         if (pendingBonusExtraction) {
