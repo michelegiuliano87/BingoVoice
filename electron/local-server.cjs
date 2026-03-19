@@ -1,14 +1,13 @@
 const http = require("node:http");
 const fs = require("node:fs/promises");
-const path = require("node:path");
 const os = require("node:os");
+const path = require("node:path");
 const crypto = require("node:crypto");
 const { fileURLToPath } = require("node:url");
-const JSZip = require("jszip");
 const { WebSocketServer } = require("ws");
 
 const DEFAULT_PORT = 3876;
-const DOWNLOAD_TTL_MS = 1000 * 60 * 30;
+const MAX_PORT_TRIES = 12;
 
 function getLocalIps() {
   const ips = [];
@@ -20,8 +19,7 @@ function getLocalIps() {
       }
     }
   }
-  if (ips.length === 0) return ["127.0.0.1"];
-  return Array.from(new Set(ips));
+  return ips.length ? Array.from(new Set(ips)) : ["127.0.0.1"];
 }
 
 function safeName(input, fallback = "file") {
@@ -44,142 +42,7 @@ function fileUrlToPathMaybe(value) {
   return value;
 }
 
-async function createZipForCards({
-  app,
-  decryptFileJson,
-  getEntityStorePath,
-  projectId,
-}) {
-  const userData = app.getPath("userData");
-  const readEntity = async (name) => {
-    try {
-      const raw = await fs.readFile(getEntityStorePath(name), "utf8");
-      const parsed = decryptFileJson(raw, `entity:${name}`);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const [cards, mediaItems, projects] = await Promise.all([
-    readEntity("PlayerCard"),
-    readEntity("MediaItem"),
-    readEntity("Project"),
-  ]);
-
-  const filteredCards = projectId
-    ? cards.filter((card) => card.project_id === projectId)
-    : cards;
-
-  const project = projectId ? projects.find((p) => p.id === projectId) : null;
-  const mediaById = new Map(mediaItems.map((item) => [item.id, item]));
-  const zip = new JSZip();
-
-  const packagedCards = filteredCards.map((card) => {
-    const media = (card.media_item_ids || [])
-      .map((id) => mediaById.get(id))
-      .filter(Boolean)
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        image_url: item.image_url || "",
-        audio_url: item.audio_url || "",
-      }));
-    return {
-      id: card.id,
-      card_number: card.card_number,
-      media,
-    };
-  });
-
-  zip.file(
-    "cards.json",
-    JSON.stringify(
-      {
-        project: project ? { id: project.id, name: project.name } : null,
-        createdAt: new Date().toISOString(),
-        cards: packagedCards,
-      },
-      null,
-      2,
-    ),
-  );
-
-  const mediaFolder = zip.folder("media");
-  if (mediaFolder) {
-    for (const card of packagedCards) {
-      for (const media of card.media) {
-        const imagePath = fileUrlToPathMaybe(media.image_url);
-        if (imagePath) {
-          try {
-            const bytes = await fs.readFile(imagePath);
-            const ext = path.extname(imagePath) || ".png";
-            mediaFolder.file(
-              safeName(`${media.name || media.id}-img${ext}`),
-              bytes,
-            );
-          } catch {}
-        }
-        const audioPath = fileUrlToPathMaybe(media.audio_url);
-        if (audioPath) {
-          try {
-            const bytes = await fs.readFile(audioPath);
-            const ext = path.extname(audioPath) || ".mp3";
-            mediaFolder.file(
-              safeName(`${media.name || media.id}-audio${ext}`),
-              bytes,
-            );
-          } catch {}
-        }
-      }
-    }
-  }
-
-  const buffer = await zip.generateAsync({ type: "nodebuffer" });
-  const exportsDir = path.join(userData, "mobile-exports");
-  await fs.mkdir(exportsDir, { recursive: true });
-  const token = crypto.randomUUID();
-  const baseName = project?.name ? `cartelle-${safeName(project.name)}` : "cartelle";
-  const filename = `${baseName}.zip`;
-  const filePath = path.join(exportsDir, `${token}-${filename}`);
-  await fs.writeFile(filePath, buffer);
-
-  return { token, filePath, filename };
-}
-
-function computePrize(cardIds, extractedIds) {
-  const totalMatched = cardIds.filter((id) => extractedIds.has(id)).length;
-  if (totalMatched >= 15) {
-    return { prize: "BINGO! 🎉", matched: cardIds.filter((id) => extractedIds.has(id)) };
-  }
-
-  let bestCount = 0;
-  let bestRowMatched = [];
-  for (let row = 0; row < 3; row++) {
-    const rowIds = cardIds.slice(row * 5, row * 5 + 5);
-    const rowMatched = rowIds.filter((id) => extractedIds.has(id));
-    if (rowMatched.length > bestCount) {
-      bestCount = rowMatched.length;
-      bestRowMatched = rowMatched;
-    }
-  }
-
-  let prize = null;
-  if (bestCount === 5) prize = "CINQUINA 🏆";
-  else if (bestCount === 4) prize = "QUATERNA ⭐⭐⭐⭐";
-  else if (bestCount === 3) prize = "TERNO ⭐⭐⭐";
-  else if (bestCount === 2) prize = "AMBO ⭐⭐";
-
-  const allMatched = cardIds.filter((id) => extractedIds.has(id));
-  return { prize, matched: allMatched, bestRowMatched };
-}
-
-async function buildCardCheckPayload({
-  app,
-  decryptFileJson,
-  getEntityStorePath,
-  projectId,
-}) {
+async function buildCardCheckPayload({ app, decryptFileJson, getEntityStorePath, projectId }) {
   const readEntity = async (name) => {
     try {
       const raw = await fs.readFile(getEntityStorePath(name), "utf8");
@@ -196,24 +59,20 @@ async function buildCardCheckPayload({
     readEntity("Extraction"),
   ]);
 
-  const scopedCards = projectId
-    ? cards.filter((card) => card.project_id === projectId)
-    : cards;
-
+  const scopedCards = projectId ? cards.filter((card) => card.project_id === projectId) : cards;
   if (scopedCards.length === 0) return null;
 
   const card = scopedCards[Math.floor(Math.random() * scopedCards.length)];
   const cardIds = card.media_item_ids || [];
   const extractedIds = new Set(extractions.map((e) => e.media_item_id));
-  const { prize, matched, bestRowMatched = [] } = computePrize(cardIds, extractedIds);
-  const count = matched.length;
-
+  const matched = cardIds.filter((id) => extractedIds.has(id));
   const mediaById = new Map(mediaItems.map((item) => [item.id, item]));
+
   return {
     type: "card_check",
     cardNumber: card.card_number,
-    prize,
-    count,
+    prize: null,
+    count: matched.length,
     totalItems: cardIds.length,
     items: cardIds.map((id) => {
       const item = mediaById.get(id);
@@ -222,7 +81,7 @@ async function buildCardCheckPayload({
         image_url: item?.image_url || "",
         name: item?.name || "",
         matched: matched.includes(id),
-        bestRow: bestRowMatched.includes(id),
+        bestRow: false,
       };
     }),
   };
@@ -251,13 +110,11 @@ function buildMobileHtml() {
       .card-check { display:none; position:absolute; inset:0; background: rgba(0,0,0,0.92); padding:18px; overflow:auto; }
       .card-wrap { max-width: 900px; margin: 0 auto; }
       .card-title { text-align:center; font-size: 34px; font-weight:900; color:white; margin-bottom: 8px; }
-      .prize { margin: 12px auto; max-width: 420px; text-align:center; padding:12px; border-radius:16px; font-weight:900; font-size: 22px; color:white; }
       .grid { display:grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
       .cell { position:relative; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.12); background:#0b1220; }
       .cell img { width:100%; aspect-ratio: 1 / 1; object-fit: cover; }
       .cell .label { font-size: 9px; text-align:center; padding:2px 4px; color:#cbd5f5; background: rgba(0,0,0,0.6); }
       .cell.matched { border-color:#22c55e; }
-      .cell.best { border-color:#facc15; box-shadow: 0 0 12px rgba(250,204,21,0.6); }
       .cell .tick { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#86efac; font-size: 28px; font-weight:900; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
     </style>
   </head>
@@ -278,12 +135,10 @@ function buildMobileHtml() {
       <div class="card-check" id="cardCheck">
         <div class="card-wrap">
           <div class="card-title" id="cardTitle">Cartella</div>
-          <div class="prize" id="prize"></div>
           <div class="grid" id="cardGrid"></div>
         </div>
       </div>
     </div>
-
     <script>
       const statusEl = document.getElementById("status");
       const connectBtn = document.getElementById("connectBtn");
@@ -291,10 +146,8 @@ function buildMobileHtml() {
       const cardCheck = document.getElementById("cardCheck");
       const waitingText = document.getElementById("waitingText");
       const cardTitle = document.getElementById("cardTitle");
-      const prize = document.getElementById("prize");
       const cardGrid = document.getElementById("cardGrid");
       let socket = null;
-      let hideTimer = null;
 
       function connect() {
         if (socket && socket.readyState === WebSocket.OPEN) return;
@@ -314,21 +167,10 @@ function buildMobileHtml() {
               cardCheck.style.display = "block";
               waitingText.style.display = "none";
               cardTitle.textContent = \`Cartella #\${payload.cardNumber}\`;
-              if (payload.prize) {
-                prize.style.display = "block";
-                prize.textContent = \`\${payload.prize} • \${payload.count}/\${payload.totalItems}\`;
-                prize.style.background = "linear-gradient(135deg,#22c55e,#16a34a)";
-              } else {
-                prize.style.display = "block";
-                prize.textContent = \`\${payload.count}/\${payload.totalItems} immagini estratte\`;
-                prize.style.background = "linear-gradient(135deg,#334155,#0f172a)";
-              }
               cardGrid.innerHTML = "";
               payload.items.forEach((item) => {
                 const cell = document.createElement("div");
-                const matched = item.matched ? " matched" : "";
-                const best = item.bestRow ? " best" : "";
-                cell.className = \`cell\${matched}\${best}\`;
+                cell.className = \`cell\${item.matched ? " matched" : ""}\`;
                 cell.innerHTML = \`<img src="\${item.image_url}" alt="" /><div class="label">\${item.name || ""}</div>\`;
                 if (item.matched) {
                   const tick = document.createElement("div");
@@ -338,11 +180,6 @@ function buildMobileHtml() {
                 }
                 cardGrid.appendChild(cell);
               });
-              clearTimeout(hideTimer);
-              hideTimer = setTimeout(() => {
-                cardCheck.style.display = "none";
-                waitingText.style.display = "block";
-              }, 20000);
             }
           } catch {}
         });
@@ -354,34 +191,19 @@ function buildMobileHtml() {
 </html>`;
 }
 
-function pingLocalServer(ip, port) {
-  return new Promise((resolve) => {
-    const req = http.request(
-      {
-        hostname: ip || "127.0.0.1",
-        port,
-        path: "/api/status",
-        method: "GET",
-        timeout: 3000,
-      },
-      (res) => {
-        resolve(res.statusCode && res.statusCode < 400);
-      },
-    );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.end();
-  });
+async function readAppSettings({ decryptFileJson, getEntityStorePath }) {
+  try {
+    const raw = await fs.readFile(getEntityStorePath("AppSettings"), "utf8");
+    const parsed = decryptFileJson(raw, "entity:AppSettings");
+    return Array.isArray(parsed) ? parsed[0] : null;
+  } catch {
+    return null;
+  }
 }
 
-async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
+async function createLocalServer({ app, decryptFileJson, getEntityStorePath, log }) {
   const clients = new Map();
-  const downloads = new Map();
   const ips = getLocalIps();
-  const ip = ips[0];
   let port = DEFAULT_PORT;
 
   const server = http.createServer(async (req, res) => {
@@ -389,6 +211,11 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
     if (url === "/" || url.startsWith("/mobile")) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(buildMobileHtml());
+      return;
+    }
+    if (url === "/health" || url === "/api/status") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
       return;
     }
     if (url === "/logo.png") {
@@ -406,9 +233,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
     }
     if (url === "/waiting-video") {
       try {
-        const raw = await fs.readFile(getEntityStorePath("AppSettings"), "utf8");
-        const parsed = decryptFileJson(raw, "entity:AppSettings");
-        const settings = Array.isArray(parsed) ? parsed[0] : null;
+        const settings = await readAppSettings({ decryptFileJson, getEntityStorePath });
         const waitUrl = settings?.waiting_video_url || "https://i.imgur.com/TXcTyF1.mp4";
         if (waitUrl.startsWith("http")) {
           res.writeHead(302, { Location: waitUrl });
@@ -427,42 +252,27 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
       res.end();
       return;
     }
-    if (url.startsWith("/download/")) {
-      const token = url.replace("/download/", "").split("?")[0];
-      const entry = downloads.get(token);
-      if (!entry) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-      const bytes = await fs.readFile(entry.filePath);
-      res.writeHead(200, {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${entry.filename}"`,
-      });
-      res.end(bytes);
-      return;
-    }
-    if (url === "/api/status") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, ip, port, url: `http://${ip}:${port}` }));
-      return;
-    }
     res.writeHead(404);
     res.end();
   });
 
-  const wss = new WebSocketServer({ noServer: true });
-  server.on("upgrade", (req, socket, head) => {
-    if (req.url !== "/ws") {
-      socket.destroy();
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req);
-    });
+  await new Promise((resolve, reject) => {
+    const tryListen = () => {
+      server.listen(port, () => resolve());
+      server.once("error", (err) => {
+        if (err.code === "EADDRINUSE" && port < DEFAULT_PORT + MAX_PORT_TRIES) {
+          port += 1;
+          if (log) log(`Porta ${port - 1} occupata. Provo ${port}.`);
+          tryListen();
+        } else {
+          reject(err);
+        }
+      });
+    };
+    tryListen();
   });
 
+  const wss = new WebSocketServer({ server, path: "/ws" });
   wss.on("connection", (ws, req) => {
     const id = crypto.randomUUID();
     const client = {
@@ -490,30 +300,20 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
     });
   });
 
-  await new Promise((resolve, reject) => {
-    const tryListen = () => {
-      server.listen(port, () => resolve());
-      server.once("error", (err) => {
-        if (err.code === "EADDRINUSE") {
-          port += 1;
-          tryListen();
-        } else {
-          reject(err);
-        }
+  const ip = ips[0];
+  const ping = () =>
+    new Promise((resolve) => {
+      const req = http.request(
+        { hostname: ip, port, path: "/health", method: "GET", timeout: 2500 },
+        (res) => resolve(res.statusCode && res.statusCode < 400),
+      );
+      req.on("error", () => resolve(false));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(false);
       });
-    };
-    tryListen();
-  });
-
-  const cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [token, entry] of downloads.entries()) {
-      if (now - entry.createdAt > DOWNLOAD_TTL_MS) {
-        downloads.delete(token);
-        fs.unlink(entry.filePath).catch(() => {});
-      }
-    }
-  }, 60_000);
+      req.end();
+    });
 
   const broadcast = (payload, targetId = null) => {
     for (const [id, client] of clients.entries()) {
@@ -526,7 +326,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
 
   return {
     getStatus: () => ({ ip, ips, port, url: `http://${ip}:${port}` }),
-    ping: () => pingLocalServer(ip, port),
+    ping,
     getConnections: () => Array.from(clients.values()).map((c) => c.meta),
     pushCards: async ({ projectId, clientId }) => {
       const payload = await buildCardCheckPayload({ app, decryptFileJson, getEntityStorePath, projectId });
@@ -535,7 +335,6 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
       return { ok: true };
     },
     close: async () => {
-      clearInterval(cleanupTimer);
       wss.close();
       server.close();
     },

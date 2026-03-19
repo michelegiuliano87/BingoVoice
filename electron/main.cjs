@@ -479,7 +479,12 @@ async function checkForStartupUpdates() {
 async function ensureLocalServer() {
   if (localServer) return localServer;
   try {
-    localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
+    localServer = await createLocalServer({
+      app,
+      decryptFileJson,
+      getEntityStorePath,
+      log: appendLocalServerLog,
+    });
     localServerError = null;
     localServerErrorAt = null;
     await appendLocalServerLog("Server locale avviato.");
