@@ -145,7 +145,7 @@ async function openMainWindow() {
     minHeight: 760,
     backgroundColor: "#0f172a",
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "..", "assets", "logo.png"),
+    icon: path.join(__dirname, "..", "assets", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -191,7 +191,7 @@ async function createChildWindow(url) {
     height: 1080,
     backgroundColor: "#020617",
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "..", "assets", "logo.png"),
+    icon: path.join(__dirname, "..", "assets", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -214,7 +214,7 @@ async function createStartupWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#06111f",
     show: false,
-    icon: path.join(__dirname, "..", "assets", "logo.png"),
+    icon: path.join(__dirname, "..", "assets", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

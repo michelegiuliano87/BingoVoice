@@ -29,9 +29,9 @@ export default function Connections() {
   useEffect(() => {
     let active = true;
     const loadStatus = async () => {
-      let status = await window.desktopAPI?.getLocalServerStatus?.();
-      if (status?.error) {
-        status = await window.desktopAPI?.ensureLocalServer?.();
+      let status = await window.desktopAPI?.ensureLocalServer?.();
+      if (!status || status?.error) {
+        status = await window.desktopAPI?.getLocalServerStatus?.();
       }
       if (!active) return;
       setServerInfo(status);
@@ -175,11 +175,11 @@ export default function Connections() {
               ) : null}
             </div>
             <div className="space-y-4">
-              {serverInfo?.ips?.length > 1 ? (
+              {serverInfo?.ips?.length ? (
                 <div>
                   <label className={`text-xs font-semibold uppercase tracking-wider ${sub}`}>IP da usare per il QR</label>
                   <select
-                    value={selectedIp}
+                    value={selectedIp || serverInfo?.ips?.[0] || ""}
                     onChange={(e) => setSelectedIp(e.target.value)}
                     className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm ${isDark ? "bg-gray-950 border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900"}`}
                   >
