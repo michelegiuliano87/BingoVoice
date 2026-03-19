@@ -26,6 +26,7 @@ let localServerErrorAt = null;
 let localServerRestarting = false;
 let startupUpdateOffer = null;
 let startupCheckInProgress = false;
+let localServerLogPath = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 const STARTUP_MIN_VISIBLE_MS = 900;
@@ -87,6 +88,18 @@ async function copyIfMissing(sourcePath, targetPath) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function appendLocalServerLog(message) {
+  try {
+    if (!localServerLogPath) {
+      localServerLogPath = path.join(app.getPath("userData"), "local-server.log");
+    }
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    await fs.appendFile(localServerLogPath, line, "utf8");
+  } catch {
+    // ignore logging errors
+  }
 }
 
 function normalizeVersion(value) {
@@ -324,20 +337,11 @@ function armStartupWatchdog() {
     if (startupMode && startupStatus === "checking") {
       sendUpdateStatus({
         type: "error",
-        message: "Controllo aggiornamenti in timeout. Sto aprendo il programma.",
+        message: "Controllo aggiornamenti in timeout. Puoi riprovare.",
+        details: "Timeout durante il controllo aggiornamenti.",
       });
-      setTimeout(() => {
-        closeStartupAndOpenMain();
-      }, 1200);
     }
   }, 12000);
-
-  if (startupForceOpenTimer) clearTimeout(startupForceOpenTimer);
-  startupForceOpenTimer = setTimeout(() => {
-    if (startupMode) {
-      closeStartupAndOpenMain();
-    }
-  }, 20000);
 }
 
 function getLicenseStatePath() {
@@ -478,10 +482,12 @@ async function ensureLocalServer() {
     localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
     localServerError = null;
     localServerErrorAt = null;
+    await appendLocalServerLog("Server locale avviato.");
     return localServer;
   } catch (error) {
     localServerError = error?.message || "local-server-error";
     localServerErrorAt = new Date().toISOString();
+    await appendLocalServerLog(`Errore avvio server: ${localServerError}`);
     return null;
   }
 }
@@ -533,6 +539,7 @@ async function restartLocalServer() {
   } finally {
     localServer = null;
   }
+  await appendLocalServerLog("Server locale riavvio richiesto.");
   await delay(250);
   const server = await ensureLocalServer();
   localServerRestarting = false;
@@ -542,10 +549,12 @@ async function restartLocalServer() {
     if (!ok) {
       localServerError = "ping-failed";
       localServerErrorAt = new Date().toISOString();
+      await appendLocalServerLog("Ping server fallito dopo riavvio.");
     }
   } catch {
     localServerError = "ping-failed";
     localServerErrorAt = new Date().toISOString();
+    await appendLocalServerLog("Ping server fallito dopo riavvio.");
   }
   const status = server.getStatus?.() || {};
   return {
@@ -692,8 +701,12 @@ ipcMain.handle("desktop:license:renew-record", async (_event, payload) => licens
 ipcMain.handle("desktop:license:release-device", async (_event, payload) => licenseService.releaseDeviceFromLicense(payload));
 ipcMain.handle("desktop:license:import-legacy", async (_event, payload) => licenseService.importLegacyData(payload));
 ipcMain.handle("desktop:local-server:status", async () => {
-  if (localServer) return { ...localServer.getStatus(), error: null };
-  return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  if (localServer) return { ...localServer.getStatus(), error: null, logPath: localServerLogPath };
+  return {
+    error: localServerError || "not-ready",
+    errorAt: localServerErrorAt,
+    logPath: localServerLogPath,
+  };
 });
 ipcMain.handle("desktop:local-server:connections", async () => localServer?.getConnections() || []);
 ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
@@ -704,14 +717,25 @@ ipcMain.handle("desktop:local-server:ping", async () => {
 });
 ipcMain.handle("desktop:local-server:ensure", async () => {
   const server = await ensureLocalServer();
-  if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  if (!server) {
+    return {
+      error: localServerError || "not-ready",
+      errorAt: localServerErrorAt,
+      logPath: localServerLogPath,
+    };
+  }
   const ok = await server.ping?.();
   if (!ok) {
     localServerError = "ping-failed";
     localServerErrorAt = new Date().toISOString();
-    return { ...server.getStatus(), error: "ping-failed", errorAt: localServerErrorAt };
+    return {
+      ...server.getStatus(),
+      error: "ping-failed",
+      errorAt: localServerErrorAt,
+      logPath: localServerLogPath,
+    };
   }
-  return { ...server.getStatus(), error: null };
+  return { ...server.getStatus(), error: null, logPath: localServerLogPath };
 });
 ipcMain.handle("desktop:local-server:force", async () => {
   const server = await ensureLocalServerReady({ attempts: 3, delayMs: 500 });
@@ -720,13 +744,24 @@ ipcMain.handle("desktop:local-server:force", async () => {
 });
 ipcMain.handle("desktop:local-server:restart", async () => {
   const server = await restartLocalServer();
-  if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  if (!server) {
+    return {
+      error: localServerError || "not-ready",
+      errorAt: localServerErrorAt,
+      logPath: localServerLogPath,
+    };
+  }
   const status = server.getStatus ? server.getStatus() : {};
   const ok = await server.ping?.();
   if (!ok) {
     localServerError = "ping-failed";
     localServerErrorAt = new Date().toISOString();
-    return { ...status, error: "ping-failed", errorAt: localServerErrorAt };
+    return {
+      ...status,
+      error: "ping-failed",
+      errorAt: localServerErrorAt,
+      logPath: localServerLogPath,
+    };
   }
   const meta = server.__restartMeta || {};
   return {
@@ -737,6 +772,7 @@ ipcMain.handle("desktop:local-server:restart", async () => {
     previousIp: meta.previousIp ?? null,
     currentPort: meta.currentPort ?? status?.port ?? null,
     currentIp: meta.currentIp ?? status?.ip ?? null,
+    logPath: localServerLogPath,
   };
 });
 

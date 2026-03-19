@@ -68,6 +68,9 @@ export default function Connections() {
       const normalized = normalizeStatus(status);
       setServerInfo(normalized.status);
       setStatusMessage(normalized.message);
+      if (status?.logPath && normalized?.ok === false) {
+        setStatusMessage(`${normalized.message} (log: ${status.logPath})`);
+      }
     };
     loadStatus();
     const interval = setInterval(loadStatus, 4000);
@@ -157,7 +160,8 @@ export default function Connections() {
       setServerInfo(normalized.status);
       if (!normalized.ok) {
         setRestartInfo(null);
-        setStatusMessage(normalized.message);
+        const extra = status?.logPath ? ` (log: ${status.logPath})` : "";
+        setStatusMessage(`${normalized.message}${extra}`);
       } else {
         const restartedAt = status?.restartedAt ? new Date(status.restartedAt).toLocaleTimeString() : null;
         const info = {
