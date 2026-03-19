@@ -17,11 +17,15 @@ let licenseService = null;
 let startupWatchdog = null;
 let startupStatus = "idle";
 let startupForceOpenTimer = null;
+let startupShownAt = null;
+let startupCloseTimer = null;
 let localServer = null;
 let localServerError = null;
 let localServerErrorAt = null;
+let localServerRestarting = false;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
+const STARTUP_MIN_VISIBLE_MS = 900;
 
 function deriveFileKey(namespace = "core") {
   return crypto.scryptSync(
@@ -168,6 +172,17 @@ async function openMainWindow() {
 }
 
 async function closeStartupAndOpenMain() {
+  if (startupCloseTimer) return;
+  const elapsed = startupShownAt ? Date.now() - startupShownAt : STARTUP_MIN_VISIBLE_MS;
+  const delay = Math.max(0, STARTUP_MIN_VISIBLE_MS - elapsed);
+  if (delay > 0) {
+    startupCloseTimer = setTimeout(() => {
+      startupCloseTimer = null;
+      closeStartupAndOpenMain();
+    }, delay);
+    return;
+  }
+
   if (startupWindow && !startupWindow.isDestroyed()) {
     startupWindow.close();
     startupWindow = null;
@@ -181,8 +196,13 @@ async function closeStartupAndOpenMain() {
     clearTimeout(startupForceOpenTimer);
     startupForceOpenTimer = null;
   }
+  if (startupCloseTimer) {
+    clearTimeout(startupCloseTimer);
+    startupCloseTimer = null;
+  }
   startupMode = false;
   startupStatus = "idle";
+  startupShownAt = null;
   await openMainWindow();
 }
 
@@ -214,7 +234,7 @@ async function createStartupWindow() {
     fullscreenable: false,
     autoHideMenuBar: true,
     backgroundColor: "#06111f",
-    show: false,
+    show: true,
     icon: path.join(__dirname, "..", "assets", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -225,7 +245,11 @@ async function createStartupWindow() {
   });
 
   await startupWindow.loadFile(path.join(__dirname, "update-ui.html"));
-  startupWindow.once("ready-to-show", () => startupWindow.show());
+  startupShownAt = Date.now();
+  startupWindow.once("ready-to-show", () => {
+    startupWindow.show();
+    if (!startupShownAt) startupShownAt = Date.now();
+  });
   startupWindow.on("closed", () => {
     startupWindow = null;
   });
@@ -335,6 +359,23 @@ async function ensureLocalServer() {
     localServerErrorAt = new Date().toISOString();
     return null;
   }
+}
+
+async function restartLocalServer() {
+  if (localServerRestarting) return localServer;
+  localServerRestarting = true;
+  try {
+    if (localServer) {
+      await localServer.close();
+    }
+  } catch {
+    // ignore close errors
+  } finally {
+    localServer = null;
+  }
+  const server = await ensureLocalServer();
+  localServerRestarting = false;
+  return server;
 }
 
 async function startAppFlow() {
@@ -485,6 +526,11 @@ ipcMain.handle("desktop:local-server:connections", async () => localServer?.getC
 ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
 ipcMain.handle("desktop:local-server:ensure", async () => {
   const server = await ensureLocalServer();
+  if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
+  return { ...server.getStatus(), error: null };
+});
+ipcMain.handle("desktop:local-server:restart", async () => {
+  const server = await restartLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
   return { ...server.getStatus(), error: null };
 });

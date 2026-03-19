@@ -21,6 +21,7 @@ export default function Connections() {
   const [connections, setConnections] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [sending, setSending] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
@@ -112,12 +113,18 @@ export default function Connections() {
   };
 
   const handleEnsureServer = async () => {
-    const status = await window.desktopAPI?.ensureLocalServer?.();
-    setServerInfo(status);
-    if (status?.error) {
-      setStatusMessage(`Server non pronto: ${status.error}`);
-    } else {
-      setStatusMessage("Server pronto.");
+    setRestarting(true);
+    setStatusMessage("Riavvio server in corso...");
+    try {
+      const status = await window.desktopAPI?.restartLocalServer?.();
+      setServerInfo(status);
+      if (status?.error) {
+        setStatusMessage(`Server non pronto: ${status.error}`);
+      } else {
+        setStatusMessage("Server pronto.");
+      }
+    } finally {
+      setRestarting(false);
     }
   };
 
@@ -153,10 +160,10 @@ export default function Connections() {
                 </Button>
               <Button
                 onClick={handleEnsureServer}
-                disabled={Boolean(serverInfo?.url)}
+                disabled={restarting}
                 variant="outline"
               >
-                Riavvia Server
+                {restarting ? "Riavvio..." : "Riavvia Server"}
               </Button>
               <Button
                 onClick={handleSendQrToScreen}
