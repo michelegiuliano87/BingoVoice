@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
+const https = require("node:https");
 const { pathToFileURL } = require("node:url");
 const { createService } = require("./license-service.cjs");
 const { createLocalServer } = require("./local-server.cjs");
@@ -23,6 +24,7 @@ let localServer = null;
 let localServerError = null;
 let localServerErrorAt = null;
 let localServerRestarting = false;
+let startupUpdateOffer = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 const STARTUP_MIN_VISIBLE_MS = 900;
@@ -84,6 +86,61 @@ async function copyIfMissing(sourcePath, targetPath) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeVersion(value) {
+  return String(value || "").trim().replace(/^v/i, "");
+}
+
+function compareVersions(a, b) {
+  const left = normalizeVersion(a).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = normalizeVersion(b).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const max = Math.max(left.length, right.length);
+  for (let i = 0; i < max; i += 1) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function fetchLatestGithubVersion() {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.github.com",
+        path: "/repos/michelegiuliano87/BingoVoice/releases/latest",
+        method: "GET",
+        headers: {
+          "User-Agent": "BingoVoice-Updater",
+          Accept: "application/vnd.github+json",
+        },
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`github-status-${res.statusCode}`));
+            return;
+          }
+          try {
+            const parsed = JSON.parse(body || "{}");
+            resolve(normalizeVersion(parsed.tag_name || parsed.name || ""));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      },
+    );
+
+    req.setTimeout(5000, () => {
+      req.destroy(new Error("github-timeout"));
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 async function ensureSeedData() {
@@ -314,6 +371,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("update-available", (info) => {
+    startupUpdateOffer = normalizeVersion(info?.version || "");
     sendUpdateStatus({ type: "available", version: info.version });
   });
 
@@ -349,6 +407,56 @@ function setupAutoUpdater() {
       }, 1200);
     }
   });
+}
+
+async function checkForStartupUpdates() {
+  const currentVersion = normalizeVersion(app.getVersion());
+  let autoVersion = null;
+  let manualVersion = null;
+
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    autoVersion = normalizeVersion(result?.updateInfo?.version || "");
+    if (autoVersion && compareVersions(autoVersion, currentVersion) > 0) {
+      startupUpdateOffer = autoVersion;
+      sendUpdateStatus({ type: "available", version: autoVersion });
+      return;
+    }
+  } catch {
+    // fallback to manual check
+  }
+
+  try {
+    manualVersion = await fetchLatestGithubVersion();
+  } catch {
+    manualVersion = null;
+  }
+
+  if (manualVersion && compareVersions(manualVersion, currentVersion) > 0) {
+    startupUpdateOffer = manualVersion;
+    sendUpdateStatus({ type: "available", version: manualVersion });
+    return;
+  }
+
+  if (!autoVersion && !manualVersion) {
+    sendUpdateStatus({
+      type: "error",
+      message: "Non sono riuscito a verificare gli aggiornamenti. Sto aprendo il programma.",
+    });
+    if (startupMode) {
+      setTimeout(() => {
+        closeStartupAndOpenMain();
+      }, 1200);
+    }
+    return;
+  }
+
+  sendUpdateStatus({ type: "up-to-date" });
+  if (startupMode) {
+    setTimeout(() => {
+      closeStartupAndOpenMain();
+    }, 900);
+  }
 }
 
 async function ensureLocalServer() {
@@ -424,20 +532,11 @@ async function startAppFlow() {
   if (app.isPackaged) {
     startupMode = true;
     updateDecisionTaken = false;
+    startupUpdateOffer = null;
     await createStartupWindow();
     sendUpdateStatus({ type: "checking" });
     armStartupWatchdog();
-    autoUpdater
-      .checkForUpdates()
-      .then((result) => {
-        const version = result?.updateInfo?.version;
-        if (version) {
-          sendUpdateStatus({ type: "available", version });
-        }
-      })
-      .catch(() => {
-        closeStartupAndOpenMain();
-      });
+    checkForStartupUpdates();
     return;
   }
 
@@ -589,9 +688,14 @@ ipcMain.on("desktop:updater-action", async (_event, action) => {
 
   if (action === "download") {
     updateDecisionTaken = true;
-    autoUpdater.downloadUpdate().catch(() => {
+    try {
+      if (!startupUpdateOffer) {
+        await autoUpdater.checkForUpdates();
+      }
+      await autoUpdater.downloadUpdate();
+    } catch {
       closeStartupAndOpenMain();
-    });
+    }
     return;
   }
 

@@ -119,8 +119,14 @@ export default function Connections() {
     setServerInfo(null);
     setRestartInfo(null);
     try {
-      const status = (await window.desktopAPI?.restartLocalServer?.()) ||
+      let status = (await window.desktopAPI?.restartLocalServer?.()) ||
         (await window.desktopAPI?.ensureLocalServer?.());
+      if (!status?.ip || !status?.port) {
+        const freshStatus = await window.desktopAPI?.getLocalServerStatus?.();
+        if (freshStatus && !freshStatus?.error) {
+          status = { ...status, ...freshStatus };
+        }
+      }
       setServerInfo(status);
       if (status?.error) {
         setStatusMessage(`Server non pronto: ${status.error}`);
