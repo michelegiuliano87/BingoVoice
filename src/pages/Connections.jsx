@@ -115,13 +115,18 @@ export default function Connections() {
   const handleEnsureServer = async () => {
     setRestarting(true);
     setStatusMessage("Riavvio server in corso...");
+    setServerInfo(null);
     try {
-      const status = await window.desktopAPI?.restartLocalServer?.();
+      const status = (await window.desktopAPI?.restartLocalServer?.()) ||
+        (await window.desktopAPI?.ensureLocalServer?.());
       setServerInfo(status);
       if (status?.error) {
         setStatusMessage(`Server non pronto: ${status.error}`);
       } else {
-        setStatusMessage("Server pronto.");
+        const restartedAt = status?.restartedAt
+          ? ` Riavviato alle ${new Date(status.restartedAt).toLocaleTimeString()}.`
+          : "";
+        setStatusMessage(`Server pronto.${restartedAt}`);
       }
     } finally {
       setRestarting(false);

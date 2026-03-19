@@ -532,7 +532,7 @@ ipcMain.handle("desktop:local-server:ensure", async () => {
 ipcMain.handle("desktop:local-server:restart", async () => {
   const server = await restartLocalServer();
   if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
-  return { ...server.getStatus(), error: null };
+  return { ...server.getStatus(), error: null, restartedAt: new Date().toISOString() };
 });
 
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {
