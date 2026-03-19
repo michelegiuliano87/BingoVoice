@@ -26,13 +26,15 @@ export default function Connections() {
   const [restarting, setRestarting] = useState(false);
   const [testingServer, setTestingServer] = useState(false);
   const forceAttemptedRef = useRef(false);
+  const [logTail, setLogTail] = useState([]);
 
   const enrichStatus = (status) => {
     if (!status) return null;
     const ip = status.ip || status.currentIp || null;
     const port = status.port || status.currentPort || null;
     const url = status.url || (ip && port ? `http://${ip}:${port}` : null);
-    return { ...status, ip, port, url };
+    const localhostUrl = status.localhostUrl || (port ? `http://127.0.0.1:${port}` : null);
+    return { ...status, ip, port, url, localhostUrl };
   };
 
   const normalizeStatus = (status) => {
@@ -70,6 +72,10 @@ export default function Connections() {
       setStatusMessage(normalized.message);
       if (status?.logPath && normalized?.ok === false) {
         setStatusMessage(`${normalized.message} (log: ${status.logPath})`);
+        const tail = await window.desktopAPI?.getLocalServerLogTail?.(5);
+        if (tail?.ok) {
+          setLogTail(tail.lines || []);
+        }
       }
     };
     loadStatus();
@@ -162,6 +168,8 @@ export default function Connections() {
         setRestartInfo(null);
         const extra = status?.logPath ? ` (log: ${status.logPath})` : "";
         setStatusMessage(`${normalized.message}${extra}`);
+        const tail = await window.desktopAPI?.getLocalServerLogTail?.(5);
+        if (tail?.ok) setLogTail(tail.lines || []);
       } else {
         const restartedAt = status?.restartedAt ? new Date(status.restartedAt).toLocaleTimeString() : null;
         const info = {
@@ -261,6 +269,9 @@ export default function Connections() {
               <div className={`text-xs ${sub}`}>
                 {serverInfo?.url ? serverInfo.url : "Server locale non pronto"}
               </div>
+              {serverInfo?.localhostUrl ? (
+                <div className={`text-[11px] ${sub}`}>Locale: {serverInfo.localhostUrl}</div>
+              ) : null}
               {serverInfo?.error ? (
                 <div className="text-xs text-rose-400">
                   Errore server: {serverInfo.error}
@@ -269,6 +280,13 @@ export default function Connections() {
               {statusMessage ? (
                 <div className={`text-xs ${serverInfo?.error ? "text-rose-400" : "text-emerald-400"}`}>
                   {statusMessage}
+                </div>
+              ) : null}
+              {logTail.length ? (
+                <div className={`text-[11px] ${sub}`}>
+                  {logTail.map((line) => (
+                    <div key={line}>{line}</div>
+                  ))}
                 </div>
               ) : null}
               {restartInfo ? (

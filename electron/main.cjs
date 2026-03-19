@@ -781,6 +781,20 @@ ipcMain.handle("desktop:local-server:restart", async () => {
   };
 });
 
+ipcMain.handle("desktop:local-server:log-tail", async (_event, lines = 5) => {
+  if (!localServerLogPath) {
+    localServerLogPath = path.join(app.getPath("userData"), "local-server.log");
+  }
+  try {
+    const raw = await fs.readFile(localServerLogPath, "utf8");
+    const items = raw.trim().split(/\r?\n/).filter(Boolean);
+    const tail = items.slice(-Math.max(1, Math.min(50, lines)));
+    return { ok: true, lines: tail, path: localServerLogPath };
+  } catch (error) {
+    return { ok: false, error: error?.message || "log-read-failed", path: localServerLogPath };
+  }
+});
+
 ipcMain.on("desktop:set-license-state", async (_event, payload) => {
   licensedUpdatesEnabled = Boolean(payload?.hasActiveLicense);
   await writeCachedLicenseState({

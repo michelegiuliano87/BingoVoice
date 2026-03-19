@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   getLocalServerConnections: () => ipcRenderer.invoke("desktop:local-server:connections"),
   pushCardsToMobile: (payload) => ipcRenderer.invoke("desktop:local-server:push-cards", payload),
   pingLocalServer: () => ipcRenderer.invoke("desktop:local-server:ping"),
+  getLocalServerLogTail: (lines) => ipcRenderer.invoke("desktop:local-server:log-tail", lines),
   saveProjectPackage: (payload) => ipcRenderer.invoke("desktop:project-package:save", payload),
   openProjectPackage: () => ipcRenderer.invoke("desktop:project-package:open"),
   encryptStorageValue: (value, namespace) => encryptStorageValue(value, namespace),

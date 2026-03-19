@@ -258,7 +258,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath, log
 
   await new Promise((resolve, reject) => {
     const tryListen = () => {
-      server.listen(port, () => resolve());
+      server.listen(port, "0.0.0.0", () => resolve());
       server.once("error", (err) => {
         if (err.code === "EADDRINUSE" && port < DEFAULT_PORT + MAX_PORT_TRIES) {
           port += 1;
@@ -304,7 +304,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath, log
   const ping = () =>
     new Promise((resolve) => {
       const req = http.request(
-        { hostname: ip, port, path: "/health", method: "GET", timeout: 2500 },
+        { hostname: "127.0.0.1", port, path: "/health", method: "GET", timeout: 2500 },
         (res) => resolve(res.statusCode && res.statusCode < 400),
       );
       req.on("error", () => resolve(false));
@@ -325,7 +325,13 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath, log
   };
 
   return {
-    getStatus: () => ({ ip, ips, port, url: `http://${ip}:${port}` }),
+    getStatus: () => ({
+      ip,
+      ips,
+      port,
+      url: `http://${ip}:${port}`,
+      localhostUrl: `http://127.0.0.1:${port}`,
+    }),
     ping,
     getConnections: () => Array.from(clients.values()).map((c) => c.meta),
     pushCards: async ({ projectId, clientId }) => {
