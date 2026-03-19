@@ -10,16 +10,18 @@ const { WebSocketServer } = require("ws");
 const DEFAULT_PORT = 3876;
 const DOWNLOAD_TTL_MS = 1000 * 60 * 30;
 
-function getLocalIp() {
+function getLocalIps() {
+  const ips = [];
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
       if (net.family === "IPv4" && !net.internal) {
-        return net.address;
+        ips.push(net.address);
       }
     }
   }
-  return "127.0.0.1";
+  if (ips.length === 0) return ["127.0.0.1"];
+  return Array.from(new Set(ips));
 }
 
 function safeName(input, fallback = "file") {
@@ -355,7 +357,8 @@ function buildMobileHtml() {
 async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
   const clients = new Map();
   const downloads = new Map();
-  const ip = getLocalIp();
+  const ips = getLocalIps();
+  const ip = ips[0];
   let port = DEFAULT_PORT;
 
   const server = http.createServer(async (req, res) => {
@@ -499,7 +502,7 @@ async function createLocalServer({ app, decryptFileJson, getEntityStorePath }) {
   };
 
   return {
-    getStatus: () => ({ ip, port, url: `http://${ip}:${port}` }),
+    getStatus: () => ({ ip, ips, port, url: `http://${ip}:${port}` }),
     getConnections: () => Array.from(clients.values()).map((c) => c.meta),
     pushCards: async ({ projectId, clientId }) => {
       const payload = await buildCardCheckPayload({ app, decryptFileJson, getEntityStorePath, projectId });

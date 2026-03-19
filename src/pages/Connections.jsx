@@ -15,6 +15,7 @@ export default function Connections() {
   const [serverInfo, setServerInfo] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrVisible, setQrVisible] = useState(false);
+  const [selectedIp, setSelectedIp] = useState("");
   const navigate = useNavigate();
   const [connections, setConnections] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -63,10 +64,12 @@ export default function Connections() {
       setQrDataUrl("");
       return;
     }
-    QRCode.toDataURL(serverInfo.url, { margin: 1, width: 240 })
+    const host = selectedIp || serverInfo.ip;
+    const url = host ? `http://${host}:${serverInfo.port}` : serverInfo.url;
+    QRCode.toDataURL(url, { margin: 1, width: 240 })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(""));
-  }, [serverInfo]);
+  }, [serverInfo, selectedIp]);
 
   const projectOptions = useMemo(
     () => projects.map((project) => ({ id: project.id, name: project.name })),
@@ -88,10 +91,12 @@ export default function Connections() {
 
   const handleSendQrToScreen = async () => {
     if (!serverInfo?.url) return;
+    const host = selectedIp || serverInfo.ip;
+    const url = host ? `http://${host}:${serverInfo.port}` : serverInfo.url;
     if (!qrVisible) {
       await base44.entities.ScreenCommand.create({
         command_type: "show_qr",
-        extraction_id: JSON.stringify({ url: serverInfo.url }),
+        extraction_id: JSON.stringify({ url }),
       });
       setQrVisible(true);
       return;
@@ -131,10 +136,10 @@ export default function Connections() {
                 Scansiona il QR code con il telefono (stessa rete Wi-Fi) per collegarti al pannello mobile.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={() => navigate("/")}>
-                Torna alla Dashboard
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" onClick={() => navigate("/")}>
+                  Torna alla Dashboard
+                </Button>
               <Button
                 onClick={handleEnsureServer}
                 disabled={Boolean(serverInfo?.url)}
@@ -163,8 +168,27 @@ export default function Connections() {
               <div className={`text-xs ${sub}`}>
                 {serverInfo?.url ? serverInfo.url : "Server locale non pronto"}
               </div>
+              {serverInfo?.error ? (
+                <div className="text-xs text-rose-400">
+                  Errore server: {serverInfo.error}
+                </div>
+              ) : null}
             </div>
             <div className="space-y-4">
+              {serverInfo?.ips?.length > 1 ? (
+                <div>
+                  <label className={`text-xs font-semibold uppercase tracking-wider ${sub}`}>IP da usare per il QR</label>
+                  <select
+                    value={selectedIp}
+                    onChange={(e) => setSelectedIp(e.target.value)}
+                    className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm ${isDark ? "bg-gray-950 border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900"}`}
+                  >
+                    {serverInfo.ips.map((ip) => (
+                      <option key={ip} value={ip}>{ip}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div>
                 <label className={`text-xs font-semibold uppercase tracking-wider ${sub}`}>Progetto da consegnare</label>
                 <select
