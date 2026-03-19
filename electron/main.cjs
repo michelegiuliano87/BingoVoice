@@ -413,13 +413,18 @@ async function checkForStartupUpdates() {
   const currentVersion = normalizeVersion(app.getVersion());
   let autoVersion = null;
   let manualVersion = null;
+  const detailsBase = `Locale: ${currentVersion || "n/d"}`;
 
   try {
     const result = await autoUpdater.checkForUpdates();
     autoVersion = normalizeVersion(result?.updateInfo?.version || "");
     if (autoVersion && compareVersions(autoVersion, currentVersion) > 0) {
       startupUpdateOffer = autoVersion;
-      sendUpdateStatus({ type: "available", version: autoVersion });
+      sendUpdateStatus({
+        type: "available",
+        version: autoVersion,
+        details: `${detailsBase} • AutoUpdater: ${autoVersion}`,
+      });
       return;
     }
   } catch {
@@ -434,7 +439,11 @@ async function checkForStartupUpdates() {
 
   if (manualVersion && compareVersions(manualVersion, currentVersion) > 0) {
     startupUpdateOffer = manualVersion;
-    sendUpdateStatus({ type: "available", version: manualVersion });
+    sendUpdateStatus({
+      type: "available",
+      version: manualVersion,
+      details: `${detailsBase} • GitHub: ${manualVersion}`,
+    });
     return;
   }
 
@@ -442,6 +451,7 @@ async function checkForStartupUpdates() {
     sendUpdateStatus({
       type: "error",
       message: "Non sono riuscito a verificare gli aggiornamenti. Sto aprendo il programma.",
+      details: `${detailsBase} • AutoUpdater: errore • GitHub: errore`,
     });
     if (startupMode) {
       setTimeout(() => {
@@ -451,7 +461,10 @@ async function checkForStartupUpdates() {
     return;
   }
 
-  sendUpdateStatus({ type: "up-to-date" });
+  sendUpdateStatus({
+    type: "up-to-date",
+    details: `${detailsBase} • AutoUpdater: ${autoVersion || "nessuno"} • GitHub: ${manualVersion || "nessuno"}`,
+  });
   if (startupMode) {
     setTimeout(() => {
       closeStartupAndOpenMain();

@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useLicense } from "@/components/licensing/LicenseProvider";
 import { LICENSE_PERMISSIONS } from "@/lib/licensing";
@@ -23,6 +24,7 @@ export default function Connections() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [sending, setSending] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [testingServer, setTestingServer] = useState(false);
 
   const enrichStatus = (status) => {
     if (!status) return null;
@@ -60,6 +62,12 @@ export default function Connections() {
       const normalized = normalizeStatus(status);
       setServerInfo(normalized.status);
       setStatusMessage(normalized.message);
+      if (!normalized.ok && status?.error === "not-ready") {
+        const restarted = await window.desktopAPI?.restartLocalServer?.();
+        const normalizedRestart = normalizeStatus(restarted);
+        setServerInfo(normalizedRestart.status);
+        setStatusMessage(normalizedRestart.message);
+      }
     };
     loadStatus();
     const interval = setInterval(loadStatus, 4000);
@@ -167,6 +175,20 @@ export default function Connections() {
     }
   };
 
+  const handleTestServer = async () => {
+    if (!serverInfo?.url) return;
+    setTestingServer(true);
+    try {
+      const response = await fetch(`${serverInfo.url}/api/status`, { cache: "no-store" });
+      if (!response.ok) throw new Error("status-not-ok");
+      toast.success("Server locale raggiungibile.");
+    } catch {
+      toast.error("Server locale non raggiungibile.");
+    } finally {
+      setTestingServer(false);
+    }
+  };
+
   const card = isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
   const title = isDark ? "text-white" : "text-gray-900";
   const sub = isDark ? "text-gray-400" : "text-gray-500";
@@ -210,6 +232,13 @@ export default function Connections() {
                 className={qrVisible ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
               >
                 {qrVisible ? "Nascondi QR" : "Invia QR Code a Schermo"}
+              </Button>
+              <Button
+                onClick={handleTestServer}
+                disabled={!serverInfo?.url || testingServer}
+                variant="secondary"
+              >
+                {testingServer ? "Test..." : "Test Server"}
               </Button>
             </div>
           </div>

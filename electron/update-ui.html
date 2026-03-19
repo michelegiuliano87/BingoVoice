@@ -210,6 +210,18 @@
         margin-top: 22px;
       }
 
+      .log {
+        margin-top: 14px;
+        font-size: 11px;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 36px;
+        white-space: pre-line;
+      }
+
       button {
         flex: 1;
         border: 0;
@@ -275,6 +287,8 @@
         <button id="primaryButton" class="primary">Aggiorna ora</button>
         <button id="secondaryButton" class="secondary">Apri senza aggiornare</button>
       </div>
+
+      <div id="log" class="log">In attesa di controllo aggiornamenti...</div>
     </div>
 
     <script>
@@ -288,6 +302,12 @@
       const primaryButton = document.getElementById("primaryButton");
       const secondaryButton = document.getElementById("secondaryButton");
       const statusChip = document.getElementById("statusChip");
+      const log = document.getElementById("log");
+
+      const setLog = (value) => {
+        if (!log) return;
+        log.textContent = value || "";
+      };
 
       const showActions = (primary, secondary) => {
         primaryButton.textContent = primary;
@@ -325,24 +345,28 @@
             title.textContent = "Controllo aggiornamenti";
             message.textContent = "Sto verificando se esiste una versione piu recente prima di aprire il programma.";
             setStatusChip("Verifica in corso");
+            setLog(payload?.details || "Controllo in corso...");
             hideActions();
             break;
           case "available":
             title.textContent = "Aggiornamento disponibile";
             message.textContent = `E disponibile la versione ${payload.version}. Vuoi installarla prima di aprire BingoVoice?`;
             setStatusChip("Nuova versione trovata");
+            setLog(payload?.details || `Nuova versione trovata: ${payload.version}`);
             showActions("Aggiorna ora", "Apri senza aggiornare");
             break;
           case "downloading":
             title.textContent = "Aggiornamento in corso";
             message.textContent = "Sto scaricando e preparando la nuova versione di BingoVoice.";
             setStatusChip("Download in corso");
+            setLog(payload?.details || "Download aggiornamento in corso...");
             showProgress(payload.percent || 0);
             break;
           case "downloaded":
             title.textContent = "Installazione aggiornamento";
             message.textContent = "Download completato. Sto chiudendo e riavviando BingoVoice per installare l'aggiornamento.";
             setStatusChip("Installazione in preparazione");
+            setLog(payload?.details || "Aggiornamento pronto.");
             showProgress(100, "Aggiornamento pronto");
             hideActions();
             break;
@@ -350,12 +374,14 @@
             title.textContent = "BingoVoice aggiornato";
             message.textContent = "Non sono stati trovati aggiornamenti. Sto aprendo il programma.";
             setStatusChip("Versione aggiornata");
+            setLog(payload?.details || "Nessun aggiornamento disponibile.");
             hideActions();
             break;
           case "error":
             title.textContent = "Aggiornamento non disponibile";
             message.textContent = payload.message || "Non sono riuscito a controllare gli aggiornamenti. Sto aprendo il programma.";
             setStatusChip("Controllo non riuscito");
+            setLog(payload?.details || payload.message || "Errore nel controllo aggiornamenti.");
             hideActions();
             break;
           default:
