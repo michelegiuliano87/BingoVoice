@@ -19,6 +19,7 @@ let startupStatus = "idle";
 let startupForceOpenTimer = null;
 let localServer = null;
 let localServerError = null;
+let localServerErrorAt = null;
 const FILE_PROTECTION_PREFIX = "encfile:v1:";
 const FILE_PROTECTION_SECRET = "toretto-file-protection-v1";
 
@@ -327,9 +328,11 @@ async function ensureLocalServer() {
   try {
     localServer = await createLocalServer({ app, decryptFileJson, getEntityStorePath });
     localServerError = null;
+    localServerErrorAt = null;
     return localServer;
   } catch (error) {
     localServerError = error?.message || "local-server-error";
+    localServerErrorAt = new Date().toISOString();
     return null;
   }
 }
@@ -476,13 +479,13 @@ ipcMain.handle("desktop:license:release-device", async (_event, payload) => lice
 ipcMain.handle("desktop:license:import-legacy", async (_event, payload) => licenseService.importLegacyData(payload));
 ipcMain.handle("desktop:local-server:status", async () => {
   if (localServer) return { ...localServer.getStatus(), error: null };
-  return { error: localServerError || "not-ready" };
+  return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
 });
 ipcMain.handle("desktop:local-server:connections", async () => localServer?.getConnections() || []);
 ipcMain.handle("desktop:local-server:push-cards", async (_event, payload) => localServer?.pushCards(payload));
 ipcMain.handle("desktop:local-server:ensure", async () => {
   const server = await ensureLocalServer();
-  if (!server) return { error: localServerError || "not-ready" };
+  if (!server) return { error: localServerError || "not-ready", errorAt: localServerErrorAt };
   return { ...server.getStatus(), error: null };
 });
 

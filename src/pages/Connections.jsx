@@ -16,6 +16,7 @@ export default function Connections() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrVisible, setQrVisible] = useState(false);
   const [selectedIp, setSelectedIp] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const navigate = useNavigate();
   const [connections, setConnections] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -35,6 +36,11 @@ export default function Connections() {
       }
       if (!active) return;
       setServerInfo(status);
+      if (status?.error) {
+        setStatusMessage(`Server non pronto: ${status.error}`);
+      } else {
+        setStatusMessage("Server pronto.");
+      }
     };
     loadStatus();
     const interval = setInterval(loadStatus, 4000);
@@ -108,6 +114,11 @@ export default function Connections() {
   const handleEnsureServer = async () => {
     const status = await window.desktopAPI?.ensureLocalServer?.();
     setServerInfo(status);
+    if (status?.error) {
+      setStatusMessage(`Server non pronto: ${status.error}`);
+    } else {
+      setStatusMessage("Server pronto.");
+    }
   };
 
   const card = isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
@@ -171,6 +182,11 @@ export default function Connections() {
               {serverInfo?.error ? (
                 <div className="text-xs text-rose-400">
                   Errore server: {serverInfo.error}
+                </div>
+              ) : null}
+              {statusMessage ? (
+                <div className={`text-xs ${serverInfo?.error ? "text-rose-400" : "text-emerald-400"}`}>
+                  {statusMessage}
                 </div>
               ) : null}
             </div>
